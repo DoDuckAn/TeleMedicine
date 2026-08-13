@@ -1,0 +1,104 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserRole {
+  ADMIN
+  DOCTOR
+  PATIENT
+}
+
+enum UserStatus {
+  ACTIVE
+  DISABLED
+}
+
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+  UNSPECIFIED
+}
+
+enum OtpPurpose {
+  LOGIN
+  REGISTER
+  RESET_PASSWORD
+}
+
+model User {
+  id     String     @id @default(cuid())
+  role   UserRole
+  status UserStatus @default(ACTIVE)
+
+  phone        String? @unique
+  email        String? @unique
+  passwordHash String?
+
+  tokenVersion Int       @default(0)
+  lastLoginAt  DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  patientProfile PatientProfile?
+  refreshTokens  RefreshToken[]
+
+  @@index([role, status])
+}
+
+model PatientProfile {
+  userID      String   @id
+  fullName    String
+  dateOfBirth DateTime
+  gender      Gender   @default(UNSPECIFIED)
+  address     String?
+  medicalHistory String?
+  drugAllergies  String?
+  avatar String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userID], references: [id])
+}
+
+model OtpCode {
+  id          String     @id @default(cuid())
+  phoneNumber String     @unique
+  purpose     OtpPurpose
+
+  codeHash   String
+  expiresAt  DateTime
+  attempts   Int       @default(0)
+  consumedAt DateTime?
+
+  payloadJson Json?
+  createdAt   DateTime @default(now())
+
+  @@index([phoneNumber, purpose, createdAt])
+}
+
+model RefreshToken {
+  id         String  @id @default(cuid())
+  userId     String
+  jti        String @unique
+  tokenHash  String  @unique
+  deviceInfo String?
+
+  expiresAt    DateTime
+  revokedAt    DateTime?
+  replacedByID String?
+
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId, revokedAt])
+}
+
