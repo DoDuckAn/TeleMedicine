@@ -44,6 +44,11 @@ export type LoginStaffInput = z.infer<typeof loginStaffSchema>;
 
 export const createDoctorSchema = z.object({
   email: z.string().trim().email().toLowerCase(),
+  fullName: z.string().trim().min(2).max(72),
+  specialtyIds: z.array(z.string().trim().min(1)).min(1),
+  qualifications: z.array(z.string().trim().min(2).max(120)).min(1),
+  avatarUrl: z.string().trim().url(),
+  bio: z.string().trim().min(10).max(1000),
 });
 
 export type CreateDoctorInput = z.infer<typeof createDoctorSchema>;
@@ -67,4 +72,3 @@ export const testCodexUpdateSchema = z.object({
 export const testCodexDeleteSchema = z.object({
   refreshToken: z.string().min(1),
 });
-

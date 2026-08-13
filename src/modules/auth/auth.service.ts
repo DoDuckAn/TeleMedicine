@@ -1,7 +1,11 @@
 ﻿import bcrypt from "bcrypt";
 import { ApiError } from "../../common/api-error.js";
 import { config } from "../../config/env.js";
-import { Gender, UserRole } from "../../../generated/prisma/enums.js";
+import {
+  Gender,
+  SpecialtyStatus,
+  UserRole,
+} from "../../../generated/prisma/enums.js";
 import { createOtpCode, createOtpExpiresAt, hashOtp } from "../../lib/otp.js";
 import { prisma } from "../../lib/prisma.js";
 // import { sendSms } from "../../lib/speedsms.js";
@@ -317,6 +321,26 @@ export async function createDoctor(input: CreateDoctorInput) {
     throw new ApiError(409, "EMAIL_ALREADY_EXISTS", "Email da ton tai");
   }
 
+  const specialtyIds = [...new Set(input.specialtyIds)];
+  const specialties = await prisma.specialty.findMany({
+    where: {
+      id: { in: specialtyIds },
+      status: SpecialtyStatus.ACTIVE,
+    },
+    select: { id: true },
+  });
+
+  if (specialties.length !== specialtyIds.length) {
+    const existingIds = new Set(specialties.map((specialty) => specialty.id));
+    const missingIds = specialtyIds.filter((id) => !existingIds.has(id));
+    throw new ApiError(
+      400,
+      "SPECIALTY_NOT_AVAILABLE",
+      "Mot hoac nhieu chuyen khoa khong ton tai hoac da bi vo hieu hoa",
+      { missingIds },
+    );
+  }
+
   const passwordHash = await bcrypt.hash(config.defaultDoctorPassword, SALT_BCRYPT);
 
   return prisma.user.create({
@@ -324,6 +348,17 @@ export async function createDoctor(input: CreateDoctorInput) {
       role: UserRole.DOCTOR,
       email: input.email,
       passwordHash,
+      doctorProfile: {
+        create: {
+          fullName: input.fullName,
+          qualifications: input.qualifications,
+          avatarUrl: input.avatarUrl,
+          bio: input.bio,
+          specialties: {
+            connect: specialtyIds.map((id) => ({ id })),
+          },
+        },
+      },
     },
     select: {
       id: true,
@@ -331,6 +366,23 @@ export async function createDoctor(input: CreateDoctorInput) {
       status: true,
       email: true,
       createdAt: true,
+      doctorProfile: {
+        select: {
+          fullName: true,
+          qualifications: true,
+          avatarUrl: true,
+          bio: true,
+          specialties: {
+            where: { status: SpecialtyStatus.ACTIVE },
+            select: {
+              id: true,
+              code: true,
+              name: true,
+            },
+            orderBy: { name: "asc" },
+          },
+        },
+      },
     },
   });
 }
@@ -353,6 +405,23 @@ export async function getMe(userId: string) {
           address: true,
           medicalHistory: true,
           drugAllergies: true,
+        },
+      },
+      doctorProfile: {
+        select: {
+          fullName: true,
+          qualifications: true,
+          avatarUrl: true,
+          bio: true,
+          specialties: {
+            where: { status: SpecialtyStatus.ACTIVE },
+            select: {
+              id: true,
+              code: true,
+              name: true,
+            },
+            orderBy: { name: "asc" },
+          },
         },
       },
     },

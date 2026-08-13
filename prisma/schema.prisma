@@ -18,6 +18,11 @@ enum UserStatus {
   DISABLED
 }
 
+enum SpecialtyStatus {
+  ACTIVE
+  DISABLED
+}
+
 enum Gender {
   MALE
   FEMALE
@@ -47,25 +52,58 @@ model User {
   updatedAt DateTime @updatedAt
 
   patientProfile PatientProfile?
+  doctorProfile  DoctorProfile?
   refreshTokens  RefreshToken[]
 
   @@index([role, status])
 }
 
 model PatientProfile {
-  userID      String   @id
-  fullName    String
-  dateOfBirth DateTime
-  gender      Gender   @default(UNSPECIFIED)
-  address     String?
+  userID         String   @id
+  fullName       String
+  dateOfBirth    DateTime
+  gender         Gender   @default(UNSPECIFIED)
+  address        String?
   medicalHistory String?
   drugAllergies  String?
-  avatar String?
+  avatar         String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   user User @relation(fields: [userID], references: [id])
+}
+
+model DoctorProfile {
+  userID         String   @id
+  fullName       String
+  qualifications String[]
+  avatarUrl      String
+  bio            String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user        User        @relation(fields: [userID], references: [id], onDelete: Cascade)
+  specialties Specialty[]
+
+  @@index([fullName])
+}
+
+model Specialty {
+  id          String          @id @default(cuid())
+  code        String          @unique
+  name        String          @unique
+  description String?
+  status      SpecialtyStatus @default(ACTIVE)
+  deletedAt   DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  doctors DoctorProfile[]
+
+  @@index([status, name])
 }
 
 model OtpCode {
@@ -87,7 +125,7 @@ model OtpCode {
 model RefreshToken {
   id         String  @id @default(cuid())
   userId     String
-  jti        String @unique
+  jti        String  @unique
   tokenHash  String  @unique
   deviceInfo String?
 
@@ -101,4 +139,3 @@ model RefreshToken {
 
   @@index([userId, revokedAt])
 }
-
