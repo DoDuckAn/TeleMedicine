@@ -351,9 +351,11 @@ export async function createDoctor(input: CreateDoctorInput) {
       doctorProfile: {
         create: {
           fullName: input.fullName,
+          yearsOfExperience: input.yearsOfExperience,
           qualifications: input.qualifications,
           avatarUrl: input.avatarUrl,
           bio: input.bio,
+          weeklySchedule: input.weeklySchedule,
           specialties: {
             connect: specialtyIds.map((id) => ({ id })),
           },
@@ -369,9 +371,11 @@ export async function createDoctor(input: CreateDoctorInput) {
       doctorProfile: {
         select: {
           fullName: true,
+          yearsOfExperience: true,
           qualifications: true,
           avatarUrl: true,
           bio: true,
+          weeklySchedule: true,
           specialties: {
             where: { status: SpecialtyStatus.ACTIVE },
             select: {
@@ -410,9 +414,11 @@ export async function getMe(userId: string) {
       doctorProfile: {
         select: {
           fullName: true,
+          yearsOfExperience: true,
           qualifications: true,
           avatarUrl: true,
           bio: true,
+          weeklySchedule: true,
           specialties: {
             where: { status: SpecialtyStatus.ACTIVE },
             select: {

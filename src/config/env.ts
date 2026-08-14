@@ -23,6 +23,8 @@ const envSchema=z.object({
     SPEEDSMS_SENDER:z.string().default("Verify"),
     OTP_EXPIRES_MINUTES:z.coerce.number().int().positive().default(2),
     OTP_MAX_ATTEMPTS:z.coerce.number().int().positive().default(3),
+    APPOINTMENT_SLOT_DURATION_MINUTES:z.coerce.number().int().positive().default(30),
+    APP_TIMEZONE:z.string().min(1).default("Asia/Ho_Chi_Minh"),
 });
 
 const parsedEnv=envSchema.safeParse(process.env);
@@ -59,6 +61,11 @@ export const config={
     otp:{
         expiresMinutes:parsedEnv.data.OTP_EXPIRES_MINUTES,
         maxAttempts:parsedEnv.data.OTP_MAX_ATTEMPTS,
+    },
+
+    schedule:{
+        slotDurationMinutes:parsedEnv.data.APPOINTMENT_SLOT_DURATION_MINUTES,
+        timezone:parsedEnv.data.APP_TIMEZONE,
     },
 }
 

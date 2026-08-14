@@ -72,22 +72,45 @@ model PatientProfile {
   updatedAt DateTime @updatedAt
 
   user User @relation(fields: [userID], references: [id])
+
+  doctorReviews DoctorReview[]
 }
 
 model DoctorProfile {
-  userID         String   @id
-  fullName       String
-  qualifications String[]
-  avatarUrl      String
-  bio            String
+  userID            String   @id
+  fullName          String
+  yearsOfExperience Int      @default(0)
+  qualifications    String[]
+  avatarUrl         String
+  bio               String
+  weeklySchedule    Json     @default("{}")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  user        User        @relation(fields: [userID], references: [id], onDelete: Cascade)
+  user        User           @relation(fields: [userID], references: [id], onDelete: Cascade)
   specialties Specialty[]
+  reviews     DoctorReview[]
 
   @@index([fullName])
+}
+
+model DoctorReview {
+  id        String  @id @default(cuid())
+  doctorID  String
+  patientID String
+  rating    Int
+  comment   String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  doctor  DoctorProfile  @relation(fields: [doctorID], references: [userID], onDelete: Cascade)
+  patient PatientProfile @relation(fields: [patientID], references: [userID], onDelete: Cascade)
+
+  @@unique([doctorID, patientID])
+  @@index([doctorID, rating, createdAt])
+  @@index([patientID, createdAt])
 }
 
 model Specialty {

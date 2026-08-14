@@ -13,6 +13,13 @@ export const specialtyRouter = Router();
 specialtyRouter.get("/", asyncHandler(SpecialtyController.list));
 
 specialtyRouter.get(
+  "/admin/all",
+  requireAuth,
+  requireRole("ADMIN"),
+  asyncHandler(SpecialtyController.adminList),
+);
+
+specialtyRouter.get(
   "/:specialtyId",
   validateParams(SpecialtySchema.specialtyIdParamSchema),
   asyncHandler(SpecialtyController.detail),

@@ -9,6 +9,7 @@ import type {
 const doctorSelect = {
   userID: true,
   fullName: true,
+  yearsOfExperience: true,
   qualifications: true,
   avatarUrl: true,
   bio: true,
@@ -24,6 +25,7 @@ const specialtySelect = {
   createdAt: true,
   updatedAt: true,
   doctors: {
+    where: { user: { status: "ACTIVE" } },
     select: doctorSelect,
     orderBy: { fullName: "asc" },
   },
@@ -72,6 +74,13 @@ export function listSpecialties() {
     where: { status: SpecialtyStatus.ACTIVE },
     select: specialtySelect,
     orderBy: { name: "asc" },
+  });
+}
+
+export function listAllSpecialties() {
+  return prisma.specialty.findMany({
+    select: specialtySelect,
+    orderBy: [{ status: "asc" }, { name: "asc" }],
   });
 }
 

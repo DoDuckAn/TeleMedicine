@@ -41,3 +41,21 @@ export function validateParams(schema: ZodSchema): RequestHandler {
         return next();
     };
 }
+
+export function validateQuery(schema: ZodSchema): RequestHandler {
+    return (req, _res, next) => {
+        const result = schema.safeParse(req.query);
+
+        if (!result.success) {
+            return next(
+                new ApiError(
+                    400,
+                    "VALIDATION_ERROR",
+                    "Tham so truy van khong hop le",
+                    result.error.issues,
+                ),
+            );
+        }
+        return next();
+    };
+}

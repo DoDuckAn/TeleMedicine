@@ -10,6 +10,10 @@ export async function list(_req: Request, res: Response) {
   return ok(res, await SpecialtyService.listSpecialties());
 }
 
+export async function adminList(_req: Request, res: Response) {
+  return ok(res, await SpecialtyService.listAllSpecialties());
+}
+
 export async function detail(req: Request, res: Response) {
   const { specialtyId } = specialtyIdParamSchema.parse(req.params);
   return ok(res, await SpecialtyService.getSpecialty(specialtyId));
