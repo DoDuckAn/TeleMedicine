@@ -25,6 +25,9 @@ const envSchema=z.object({
     OTP_MAX_ATTEMPTS:z.coerce.number().int().positive().default(3),
     APPOINTMENT_SLOT_DURATION_MINUTES:z.coerce.number().int().positive().default(30),
     APP_TIMEZONE:z.string().min(1).default("Asia/Ho_Chi_Minh"),
+    APPOINTMENT_HOLD_MINUTES: z.coerce.number().int().positive().min(1).default(15),
+    APPOINTMENT_CANCEL_BEFORE_MINUTES:z.coerce.number().int().positive().min(1).default(30),
+    APPOINTMENT_AVAILABILITY_DAYS:z.coerce.number().int().positive().min(1).default(7),
 });
 
 const parsedEnv=envSchema.safeParse(process.env);
@@ -66,6 +69,9 @@ export const config={
     schedule:{
         slotDurationMinutes:parsedEnv.data.APPOINTMENT_SLOT_DURATION_MINUTES,
         timezone:parsedEnv.data.APP_TIMEZONE,
+        appointmentHoldMinutes:parsedEnv.data.APPOINTMENT_HOLD_MINUTES,
+        appointmentCancelBeforeMinutes:parsedEnv.data.APPOINTMENT_CANCEL_BEFORE_MINUTES,
+        appointmentAvailabilityDays:parsedEnv.data.APPOINTMENT_AVAILABILITY_DAYS,
     },
 }
 

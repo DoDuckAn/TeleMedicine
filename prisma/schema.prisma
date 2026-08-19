@@ -36,6 +36,50 @@ enum OtpPurpose {
   RESET_PASSWORD
 }
 
+enum AppointmentStatus {
+  PENDING_CONFIRMATION
+  CONFIRMED
+  REJECTED
+  CANCELLED
+  EXPIRED
+  COMPLETED
+  NO_SHOW
+}
+
+enum AppointmentActor {
+  PATIENT
+  DOCTOR
+  ADMIN
+  SYSTEM
+}
+
+enum DoctorScheduleOverrideType {
+  AVAILABLE
+  UNAVAILABLE
+}
+
+enum AppointmentNotificationType {
+  REQUEST_CREATED
+  REQUEST_CONFIRMED
+  REQUEST_REJECTED
+  REQUEST_EXPIRED
+  APPOINTMENT_CANCELLED
+  REMINDER_1_HOUR
+  REMINDER_15_MINUTES
+}
+
+enum NotificationChannel {
+  PUSH
+  SMS
+}
+
+enum NotificationDeliveryStatus {
+  PENDING
+  SENT
+  FAILED
+  CANCELLED
+}
+
 model User {
   id     String     @id @default(cuid())
   role   UserRole
@@ -54,6 +98,10 @@ model User {
   patientProfile PatientProfile?
   doctorProfile  DoctorProfile?
   refreshTokens  RefreshToken[]
+
+  appointmentStatusChanges AppointmentStatusHistory[] @relation("AppointmentStatusChangedBy")
+  scheduleOverridesCreated DoctorScheduleOverride[]   @relation("ScheduleOverrideCreatedBy")
+  appointmentNotifications AppointmentNotification[]  @relation("AppointmentNotificationRecipient")
 
   @@index([role, status])
 }
@@ -74,6 +122,7 @@ model PatientProfile {
   user User @relation(fields: [userID], references: [id])
 
   doctorReviews DoctorReview[]
+  appointments  Appointment[]  @relation("PatientAppointments")
 }
 
 model DoctorProfile {
@@ -91,6 +140,10 @@ model DoctorProfile {
   user        User           @relation(fields: [userID], references: [id], onDelete: Cascade)
   specialties Specialty[]
   reviews     DoctorReview[]
+
+  appointments      Appointment[]                @relation("DoctorAppointments")
+  scheduleOverrides DoctorScheduleOverride[]
+  slotReservations  AppointmentSlotReservation[]
 
   @@index([fullName])
 }
@@ -111,6 +164,113 @@ model DoctorReview {
   @@unique([doctorID, patientID])
   @@index([doctorID, rating, createdAt])
   @@index([patientID, createdAt])
+}
+
+model Appointment {
+  id        String @id @default(cuid())
+  doctorID  String
+  patientID String
+
+  startAt DateTime
+  endAt   DateTime
+
+  visitReason        String
+  status             AppointmentStatus @default(PENDING_CONFIRMATION)
+  confirmationDueAt  DateTime
+  rejectionReason    String?
+  cancellationReason String?
+  cancelledBy        AppointmentActor?
+  respondedAt        DateTime?
+  cancelledAt        DateTime?
+  completedAt        DateTime?
+  meetingUrl         String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  doctor          DoctorProfile               @relation("DoctorAppointments", fields: [doctorID], references: [userID], onDelete: Restrict)
+  patient         PatientProfile              @relation("PatientAppointments", fields: [patientID], references: [userID], onDelete: Restrict)
+  slotReservation AppointmentSlotReservation?
+  statusHistory   AppointmentStatusHistory[]
+  notifications   AppointmentNotification[]
+
+  @@index([doctorID, startAt, status])
+  @@index([patientID, startAt, status])
+  @@index([status, confirmationDueAt])
+}
+
+model AppointmentSlotReservation {
+  id            String    @id @default(cuid())
+  appointmentID String    @unique
+  doctorID      String
+  startAt       DateTime
+  endAt         DateTime
+  expiresAt     DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  appointment Appointment   @relation(fields: [appointmentID], references: [id], onDelete: Cascade)
+  doctor      DoctorProfile @relation(fields: [doctorID], references: [userID], onDelete: Cascade)
+
+  @@unique([doctorID, startAt])
+  @@index([expiresAt])
+}
+
+model DoctorScheduleOverride {
+  id          String                     @id @default(cuid())
+  doctorID    String
+  createdByID String?
+  type        DoctorScheduleOverrideType
+  startAt     DateTime
+  endAt       DateTime
+  reason      String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  doctor    DoctorProfile @relation(fields: [doctorID], references: [userID], onDelete: Cascade)
+  createdBy User?         @relation("ScheduleOverrideCreatedBy", fields: [createdByID], references: [id], onDelete: SetNull)
+
+  @@index([doctorID, startAt, endAt, type])
+}
+
+model AppointmentStatusHistory {
+  id            String             @id @default(cuid())
+  appointmentID String
+  changedByID   String?
+  fromStatus    AppointmentStatus?
+  toStatus      AppointmentStatus
+  actor         AppointmentActor
+  note          String?
+  createdAt     DateTime           @default(now())
+
+  appointment Appointment @relation(fields: [appointmentID], references: [id], onDelete: Cascade)
+  changedBy   User?       @relation("AppointmentStatusChangedBy", fields: [changedByID], references: [id], onDelete: SetNull)
+
+  @@index([appointmentID, createdAt])
+}
+
+model AppointmentNotification {
+  id            String                      @id @default(cuid())
+  appointmentID String
+  recipientID   String
+  type          AppointmentNotificationType
+  channel       NotificationChannel
+  status        NotificationDeliveryStatus  @default(PENDING)
+  scheduledAt   DateTime
+  sentAt        DateTime?
+  attempts      Int                         @default(0)
+  failureReason String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  appointment Appointment @relation(fields: [appointmentID], references: [id], onDelete: Cascade)
+  recipient   User        @relation("AppointmentNotificationRecipient", fields: [recipientID], references: [id], onDelete: Cascade)
+
+  @@unique([appointmentID, recipientID, type, channel])
+  @@index([status, scheduledAt])
 }
 
 model Specialty {

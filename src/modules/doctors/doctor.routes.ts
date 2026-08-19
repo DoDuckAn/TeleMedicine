@@ -6,6 +6,8 @@ import {
 } from "../../middleware/validate.middleware.js";
 import * as DoctorController from "./doctor.controller.js";
 import * as DoctorSchema from "./doctor.schema.js";
+import * as AppointmentController from "../appointments/appointment.controller.js";
+import * as AppointmentSchema from "../appointments/appointment.schema.js";
 
 export const doctorRouter = Router();
 
@@ -17,9 +19,15 @@ doctorRouter.get(
 
 doctorRouter.get(
   "/:doctorId/schedule",
-  validateParams(DoctorSchema.doctorIdParamSchema),
-  asyncHandler(DoctorController.schedule),
+  validateParams(AppointmentSchema.doctorAvailabilityParamSchema),
+  asyncHandler(AppointmentController.availability),
 );
+
+// doctorRouter.get(
+//   "/:doctorId/schedule",
+//   validateParams(DoctorSchema.doctorIdParamSchema),
+//   asyncHandler(DoctorController.schedule),
+// );
 
 doctorRouter.get(
   "/:doctorId",
