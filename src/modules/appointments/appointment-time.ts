@@ -1,6 +1,7 @@
 import { isValid } from "date-fns";
 import { formatInTimeZone, fromZonedTime } from "date-fns-tz";
 import type { WeeklySchedule } from "../doctors/doctor.schema.js";
+import { config } from "../../config/env.js";
 
 export type TimeRange = {
   startAt: Date;
@@ -215,4 +216,18 @@ export function overlapsAny(
   return otherRanges.some((other) =>
     rangesOverlap(range, other),
   );
+}
+
+export function isInUpcomingDays(checkDate: Date) {
+  const now = new Date();
+  const upcomingDays = getUpcomingDays(
+    now,
+    config.schedule.timezone,
+    config.schedule.appointmentAvailabilityDays,
+  );
+  const period: TimeRange = {
+    startAt: upcomingDays[0]!.startAt,
+    endAt: upcomingDays.at(-1)!.endAt,
+  };
+  return checkDate >= period.startAt && checkDate < period.endAt;
 }

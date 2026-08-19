@@ -7,7 +7,7 @@ import { ApiError } from "../../common/api-error.js";
 import { config } from "../../config/env.js";
 import { prisma } from "../../lib/prisma.js";
 import { weeklyScheduleSchema } from "../doctors/doctor.schema.js";
-import type { DoctorAvailabilityInput } from "./appointment.schema.js";
+import type { checkSlotAvailableInput, DoctorAvailabilityInput } from "./appointment.schema.js";
 import {
   clipRangesToWindow,
   getUpcomingDays,
@@ -136,4 +136,16 @@ export async function getDoctorAvailability(
     slotDurationMinutes: config.schedule.slotDurationMinutes,
     days,
   };
+}
+
+export async function checkSlotAvailable(input:checkSlotAvailableInput) {
+  const availableSlots=await getDoctorAvailability({doctorId:input.doctorId});
+  const slotDuration = config.schedule.slotDurationMinutes * 60 * 1000;
+  const expectedEndAt=new Date(input.startAt.getTime()+slotDuration);
+  return availableSlots.days.some((day)=>
+    day.slots.some((slot)=>
+      slot.startAt.getTime()===input.startAt.getTime() &&
+      slot.endAt.getTime()===expectedEndAt.getTime()
+    )
+  );
 }

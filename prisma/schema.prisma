@@ -121,8 +121,9 @@ model PatientProfile {
 
   user User @relation(fields: [userID], references: [id])
 
-  doctorReviews DoctorReview[]
-  appointments  Appointment[]  @relation("PatientAppointments")
+  doctorReviews    DoctorReview[]
+  appointments     Appointment[]                @relation("PatientAppointments")
+  slotReservations AppointmentSlotReservation[]
 }
 
 model DoctorProfile {
@@ -203,6 +204,7 @@ model AppointmentSlotReservation {
   id            String    @id @default(cuid())
   appointmentID String    @unique
   doctorID      String
+  patientID     String
   startAt       DateTime
   endAt         DateTime
   expiresAt     DateTime?
@@ -210,10 +212,12 @@ model AppointmentSlotReservation {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  appointment Appointment   @relation(fields: [appointmentID], references: [id], onDelete: Cascade)
-  doctor      DoctorProfile @relation(fields: [doctorID], references: [userID], onDelete: Cascade)
+  appointment Appointment    @relation(fields: [appointmentID], references: [id], onDelete: Cascade)
+  doctor      DoctorProfile  @relation(fields: [doctorID], references: [userID], onDelete: Cascade)
+  patient     PatientProfile @relation(fields: [patientID], references: [userID], onDelete: Cascade)
 
   @@unique([doctorID, startAt])
+  @@unique([patientID, startAt])
   @@index([expiresAt])
 }
 
