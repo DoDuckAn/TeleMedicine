@@ -76,6 +76,14 @@ appointmentRouter.post(
 );
 
 appointmentRouter.post(
+  "/:appointmentId/complete",
+  requireAuth,
+  requireRole("DOCTOR"),
+  validateParams(appointmentIdParamSchema),
+  asyncHandler(AppointmentController.completeAppointment),
+);
+
+appointmentRouter.post(
   "/:appointmentId/reject",
   requireAuth,
   requireRole("DOCTOR"),

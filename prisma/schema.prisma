@@ -64,6 +64,8 @@ enum AppointmentNotificationType {
   REQUEST_REJECTED
   REQUEST_EXPIRED
   APPOINTMENT_CANCELLED
+  APPOINTMENT_COMPLETED
+  DOCTOR_NO_SHOW
   REMINDER_1_HOUR
   REMINDER_15_MINUTES
 }
@@ -175,16 +177,23 @@ model Appointment {
   startAt DateTime
   endAt   DateTime
 
-  visitReason        String
-  status             AppointmentStatus @default(PENDING_CONFIRMATION)
-  confirmationDueAt  DateTime
-  rejectionReason    String?
-  cancellationReason String?
-  cancelledBy        AppointmentActor?
-  respondedAt        DateTime?
-  cancelledAt        DateTime?
-  completedAt        DateTime?
-  meetingUrl         String?
+  visitReason             String
+  status                  AppointmentStatus @default(PENDING_CONFIRMATION)
+  confirmationDueAt       DateTime
+  rejectionReason         String?
+  cancellationReason      String?
+  cancelledBy             AppointmentActor?
+  respondedAt             DateTime?
+  cancelledAt             DateTime?
+  completedAt             DateTime?
+  noShowAt                DateTime?
+  meetingUrl              String?
+  meetingSpaceName        String?
+  meetingCreatedAt        DateTime?
+  meetingClosedAt         DateTime?
+  meetingCleanupPending   Boolean           @default(false)
+  meetingCleanupAttempts  Int               @default(0)
+  meetingCleanupLastError String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -198,6 +207,8 @@ model Appointment {
   @@index([doctorID, startAt, status])
   @@index([patientID, startAt, status])
   @@index([status, confirmationDueAt])
+  @@index([status, endAt])
+  @@index([meetingCleanupPending, updatedAt])
 }
 
 model AppointmentSlotReservation {

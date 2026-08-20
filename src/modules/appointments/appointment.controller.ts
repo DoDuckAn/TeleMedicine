@@ -90,6 +90,14 @@ export async function confirmAppointment(req: Request, res: Response) {
   );
 }
 
+export async function completeAppointment(req: Request, res: Response) {
+  const { appointmentId } = appointmentIdParamSchema.parse(req.params);
+  return ok(
+    res,
+    await AppointmentService.completeAppointment(req.user!.id, appointmentId),
+  );
+}
+
 export async function rejectAppointment(req: Request, res: Response) {
   const { appointmentId } = appointmentIdParamSchema.parse(req.params);
   const body = req.body as RejectAppointmentInput;

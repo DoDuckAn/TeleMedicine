@@ -28,6 +28,33 @@ const envSchema=z.object({
     APPOINTMENT_HOLD_MINUTES: z.coerce.number().int().positive().min(1).default(15),
     APPOINTMENT_CANCEL_BEFORE_MINUTES:z.coerce.number().int().positive().min(1).default(30),
     APPOINTMENT_AVAILABILITY_DAYS:z.coerce.number().int().positive().min(1).default(7),
+    APPOINTMENT_MEETING_JOIN_BEFORE_MINUTES: z.coerce.number().int().positive().min(1).default(15),
+    APPOINTMENT_NO_SHOW_AFTER_MINUTES: z.coerce.number().int().positive().min(1).default(30),
+    GOOGLE_MEET_ENABLED: z
+        .enum(["true", "false"])
+        .default("false")
+        .transform((value) => value === "true"),
+    GOOGLE_CLIENT_ID: z.string().optional(),
+    GOOGLE_CLIENT_SECRET: z.string().optional(),
+    GOOGLE_REFRESH_TOKEN: z.string().optional(),
+}).superRefine((env, ctx) => {
+    if (!env.GOOGLE_MEET_ENABLED) {
+        return;
+    }
+
+    for (const key of [
+        "GOOGLE_CLIENT_ID",
+        "GOOGLE_CLIENT_SECRET",
+        "GOOGLE_REFRESH_TOKEN",
+    ] as const) {
+        if (!env[key]) {
+            ctx.addIssue({
+                code: "custom",
+                path: [key],
+                message: `${key} is required when GOOGLE_MEET_ENABLED=true`,
+            });
+        }
+    }
 });
 
 const parsedEnv=envSchema.safeParse(process.env);
@@ -72,6 +99,15 @@ export const config={
         appointmentHoldMinutes:parsedEnv.data.APPOINTMENT_HOLD_MINUTES,
         appointmentCancelBeforeMinutes:parsedEnv.data.APPOINTMENT_CANCEL_BEFORE_MINUTES,
         appointmentAvailabilityDays:parsedEnv.data.APPOINTMENT_AVAILABILITY_DAYS,
+        meetingJoinBeforeMinutes:parsedEnv.data.APPOINTMENT_MEETING_JOIN_BEFORE_MINUTES,
+        noShowAfterMinutes:parsedEnv.data.APPOINTMENT_NO_SHOW_AFTER_MINUTES,
+    },
+
+    googleMeet: {
+        enabled: parsedEnv.data.GOOGLE_MEET_ENABLED,
+        clientId: parsedEnv.data.GOOGLE_CLIENT_ID,
+        clientSecret: parsedEnv.data.GOOGLE_CLIENT_SECRET,
+        refreshToken: parsedEnv.data.GOOGLE_REFRESH_TOKEN,
     },
 }
 

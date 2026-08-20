@@ -11,6 +11,12 @@ import { Prisma } from "../../../generated/prisma/client.js";
 import { ApiError } from "../../common/api-error.js";
 import { config } from "../../config/env.js";
 import { prisma } from "../../lib/prisma.js";
+import {
+  closeGoogleMeetSpace,
+  createGoogleMeetSpace,
+  limitGoogleMeetSpaceAccess,
+} from "../../lib/google-meet.js";
+import { applyPatientMeetingUrlPolicy } from "./appointment-meeting.js";
 import { isInUpcomingDays } from "./appointment-time.js";
 import type {
   AdminAppointmentListQuery,
@@ -29,6 +35,7 @@ const doctorAppointmentListSelect = {
     status: true,
     confirmationDueAt: true,
     respondedAt: true,
+    meetingUrl: true,
     createdAt: true,
     patient: {
         select: {
@@ -56,6 +63,7 @@ const appointmentHistorySelect = {
     respondedAt: true,
     cancelledAt: true,
     completedAt: true,
+    noShowAt: true,
     meetingUrl: true,
     createdAt: true,
     updatedAt: true,
@@ -88,10 +96,6 @@ const appointmentHistorySelect = {
         },
     },
 } as const;
-
-function createMeetingUrl(appointmentId: string) {
-    return `/appointments/${appointmentId}/room`;
-}
 
 function getAppointmentActor(role: UserRole) {
     switch (role) {
@@ -201,7 +205,7 @@ export async function getPatientUpcomingAppointments(
     ]);
 
     return {
-        items,
+        items: items.map((item) => applyPatientMeetingUrlPolicy(item, now)),
         pagination: {
             page: query.page,
             limit: query.limit,
@@ -231,6 +235,7 @@ function createAppointmentHistoryWhere(
 async function listAppointmentHistory(
     where: Prisma.AppointmentWhereInput,
     query: AppointmentHistoryQuery | AdminAppointmentListQuery,
+    applyPatientMeetingPolicy = false,
 ) {
     const skip = (query.page - 1) * query.limit;
     const [items, total] = await prisma.$transaction([
@@ -247,8 +252,12 @@ async function listAppointmentHistory(
         prisma.appointment.count({ where }),
     ]);
 
+    const responseItems = applyPatientMeetingPolicy
+        ? items.map((item) => applyPatientMeetingUrlPolicy(item))
+        : items;
+
     return {
-        items,
+        items: responseItems,
         pagination: {
             page: query.page,
             limit: query.limit,
@@ -273,6 +282,7 @@ export function getOwnAppointmentHistory(
             ...createAppointmentHistoryWhere(query),
         },
         query,
+        currentUser.role === "PATIENT",
     );
 }
 
@@ -308,6 +318,7 @@ export async function getAppointmentDetail(
             respondedAt: true,
             cancelledAt: true,
             completedAt: true,
+            noShowAt: true,
             meetingUrl: true,
             createdAt: true,
             updatedAt: true,
@@ -376,7 +387,9 @@ export async function getAppointmentDetail(
         );
     }
 
-    return appointment;
+    return currentUser.role === "PATIENT"
+        ? applyPatientMeetingUrlPolicy(appointment)
+        : appointment;
 }
 
 export async function confirmAppointment(
@@ -388,6 +401,9 @@ export async function confirmAppointment(
         select: {
             id: true,
             doctorID: true,
+            status: true,
+            confirmationDueAt: true,
+            startAt: true,
         },
     });
 
@@ -409,7 +425,22 @@ export async function confirmAppointment(
 
     const now = new Date();
 
-    return prisma.$transaction(async (tx) => {
+    if (
+        existingAppointment.status !== AppointmentStatus.PENDING_CONFIRMATION ||
+        existingAppointment.confirmationDueAt <= now ||
+        existingAppointment.startAt <= now
+    ) {
+        throw new ApiError(
+            409,
+            "APPOINTMENT_NOT_CONFIRMABLE",
+            "Lich hen khong con co the xac nhan",
+        );
+    }
+
+    const meetingSpace = await createGoogleMeetSpace();
+
+    try {
+        return await prisma.$transaction(async (tx) => {
         const updated = await tx.appointment.updateMany({
             where: {
                 id: appointmentId,
@@ -421,7 +452,9 @@ export async function confirmAppointment(
             data: {
                 status: AppointmentStatus.CONFIRMED,
                 respondedAt: now,
-                meetingUrl: createMeetingUrl(appointmentId),
+                meetingUrl: meetingSpace.meetingUrl,
+                meetingSpaceName: meetingSpace.name,
+                meetingCreatedAt: now,
             },
         });
 
@@ -524,7 +557,169 @@ export async function confirmAppointment(
         }
 
         return appointment;
+        });
+    } catch (error) {
+        await limitGoogleMeetSpaceAccess(meetingSpace.name);
+        throw error;
+    }
+}
+
+export async function cleanupAppointmentMeeting(appointmentId: string) {
+    const appointment = await prisma.appointment.findUnique({
+        where: { id: appointmentId },
+        select: {
+            id: true,
+            meetingSpaceName: true,
+            meetingCleanupPending: true,
+        },
     });
+
+    if (
+        !appointment?.meetingCleanupPending ||
+        !appointment.meetingSpaceName
+    ) {
+        return true;
+    }
+
+    try {
+        await closeGoogleMeetSpace(appointment.meetingSpaceName);
+        await prisma.appointment.updateMany({
+            where: {
+                id: appointmentId,
+                meetingCleanupPending: true,
+            },
+            data: {
+                meetingCleanupPending: false,
+                meetingCleanupLastError: null,
+                meetingClosedAt: new Date(),
+            },
+        });
+        return true;
+    } catch (error) {
+        const message = error instanceof Error
+            ? error.message.slice(0, 1000)
+            : "Unknown error";
+        await prisma.appointment.updateMany({
+            where: {
+                id: appointmentId,
+                meetingCleanupPending: true,
+            },
+            data: {
+                meetingCleanupAttempts: { increment: 1 },
+                meetingCleanupLastError: message,
+            },
+        });
+        return false;
+    }
+}
+
+export async function completeAppointment(
+    doctorId: string,
+    appointmentId: string,
+) {
+    const appointment = await prisma.appointment.findUnique({
+        where: { id: appointmentId },
+        select: {
+            id: true,
+            doctorID: true,
+            startAt: true,
+            status: true,
+            meetingSpaceName: true,
+        },
+    });
+
+    if (!appointment) {
+        throw new ApiError(
+            404,
+            "APPOINTMENT_NOT_FOUND",
+            "Khong tim thay lich hen",
+        );
+    }
+
+    if (appointment.doctorID !== doctorId) {
+        throw new ApiError(
+            403,
+            "APPOINTMENT_FORBIDDEN",
+            "Khong co quyen hoan thanh lich hen nay",
+        );
+    }
+
+    const now = new Date();
+    if (appointment.status !== AppointmentStatus.CONFIRMED) {
+        throw new ApiError(
+            409,
+            "APPOINTMENT_NOT_COMPLETABLE",
+            "Lich hen khong con co the hoan thanh",
+        );
+    }
+
+    if (now < appointment.startAt) {
+        throw new ApiError(
+            409,
+            "APPOINTMENT_NOT_STARTED",
+            "Chua den gio bat dau lich hen",
+        );
+    }
+
+    const completedAppointment = await prisma.$transaction(async (tx) => {
+        const updated = await tx.appointment.updateMany({
+            where: {
+                id: appointmentId,
+                doctorID: doctorId,
+                status: AppointmentStatus.CONFIRMED,
+                startAt: { lte: now },
+            },
+            data: {
+                status: AppointmentStatus.COMPLETED,
+                completedAt: now,
+                meetingCleanupPending: appointment.meetingSpaceName !== null,
+            },
+        });
+
+        if (updated.count !== 1) {
+            throw new ApiError(
+                409,
+                "APPOINTMENT_NOT_COMPLETABLE",
+                "Lich hen khong con co the hoan thanh",
+            );
+        }
+
+        await tx.appointmentSlotReservation.deleteMany({
+            where: { appointmentID: appointmentId },
+        });
+
+        await tx.appointmentStatusHistory.create({
+            data: {
+                appointmentID: appointmentId,
+                changedByID: doctorId,
+                fromStatus: AppointmentStatus.CONFIRMED,
+                toStatus: AppointmentStatus.COMPLETED,
+                actor: AppointmentActor.DOCTOR,
+                note: "Bac si xac nhan hoan thanh buoi kham",
+            },
+        });
+
+        await tx.appointmentNotification.updateMany({
+            where: {
+                appointmentID: appointmentId,
+                status: NotificationDeliveryStatus.PENDING,
+            },
+            data: { status: NotificationDeliveryStatus.CANCELLED },
+        });
+
+        return tx.appointment.findUniqueOrThrow({
+            where: { id: appointmentId },
+        });
+    });
+
+    if (completedAppointment.meetingCleanupPending) {
+        await cleanupAppointmentMeeting(appointmentId);
+        return prisma.appointment.findUniqueOrThrow({
+            where: { id: appointmentId },
+        });
+    }
+
+    return completedAppointment;
 }
 
 export async function rejectAppointment(
@@ -649,6 +844,7 @@ export async function cancelAppointment(
             patientID: true,
             startAt: true,
             status: true,
+            meetingSpaceName: true,
         },
     });
 
@@ -704,7 +900,7 @@ export async function cancelAppointment(
 
     const actor = getAppointmentActor(currentUser.role);
 
-    return prisma.$transaction(async (tx) => {
+    const cancelledAppointment = await prisma.$transaction(async (tx) => {
         const updated = await tx.appointment.updateMany({
             where: {
                 id: appointmentId,
@@ -723,6 +919,7 @@ export async function cancelAppointment(
                 cancellationReason: reason,
                 cancelledBy: actor,
                 cancelledAt: now,
+                meetingCleanupPending: appointment.meetingSpaceName !== null,
             },
         });
 
@@ -789,6 +986,20 @@ export async function cancelAppointment(
             where: { id: appointmentId },
         });
     });
+
+    if (appointment.meetingSpaceName) {
+        await cleanupAppointmentMeeting(appointmentId);
+        const cleanedAppointment = await prisma.appointment.findUniqueOrThrow({
+            where: { id: appointmentId },
+        });
+        return currentUser.role === "PATIENT"
+            ? applyPatientMeetingUrlPolicy(cleanedAppointment)
+            : cleanedAppointment;
+    }
+
+    return currentUser.role === "PATIENT"
+        ? applyPatientMeetingUrlPolicy(cancelledAppointment)
+        : cancelledAppointment;
 }
 
 export async function createAppointment(input:CreateAppointmentInput){
