@@ -7,6 +7,7 @@ import {
 import { config } from "../../config/env.js";
 import { prisma } from "../../lib/prisma.js";
 import { cleanupAppointmentMeeting } from "./appointment.service.js";
+import { sendDueAppointmentNotifications } from "./appointment.notification.js";
 
 const JOB_BATCH_SIZE = 20;
 let maintenanceRunning = false;
@@ -119,14 +120,27 @@ async function cleanupPendingMeetingSpaces() {
 
 export async function runAppointmentMaintenance(now = new Date()) {
     if (maintenanceRunning) {
-        return { skipped: true, noShowCount: 0, cleanedCount: 0 };
+        return {
+            skipped: true,
+            noShowCount: 0,
+            cleanedCount: 0,
+            notificationSentCount: 0,
+            notificationFailedCount: 0,
+        };
     }
 
     maintenanceRunning = true;
     try {
         const noShowCount = await markOverdueAppointmentsNoShow(now);
         const cleanedCount = await cleanupPendingMeetingSpaces();
-        return { skipped: false, noShowCount, cleanedCount };
+        const notificationResult = await sendDueAppointmentNotifications(now);
+        return {
+            skipped: false,
+            noShowCount,
+            cleanedCount,
+            notificationSentCount: notificationResult.sentCount,
+            notificationFailedCount: notificationResult.failedCount,
+        };
     } finally {
         maintenanceRunning = false;
     }

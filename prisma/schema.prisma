@@ -77,9 +77,16 @@ enum NotificationChannel {
 
 enum NotificationDeliveryStatus {
   PENDING
+  PROCESSING
   SENT
   FAILED
   CANCELLED
+}
+
+enum PushDevicePlatform {
+  WEB
+  ANDROID
+  IOS
 }
 
 model User {
@@ -104,6 +111,7 @@ model User {
   appointmentStatusChanges AppointmentStatusHistory[] @relation("AppointmentStatusChangedBy")
   scheduleOverridesCreated DoctorScheduleOverride[]   @relation("ScheduleOverrideCreatedBy")
   appointmentNotifications AppointmentNotification[]  @relation("AppointmentNotificationRecipient")
+  pushDeviceTokens         PushDeviceToken[]
 
   @@index([role, status])
 }
@@ -267,16 +275,18 @@ model AppointmentStatusHistory {
 }
 
 model AppointmentNotification {
-  id            String                      @id @default(cuid())
-  appointmentID String
-  recipientID   String
-  type          AppointmentNotificationType
-  channel       NotificationChannel
-  status        NotificationDeliveryStatus  @default(PENDING)
-  scheduledAt   DateTime
-  sentAt        DateTime?
-  attempts      Int                         @default(0)
-  failureReason String?
+  id                  String                      @id @default(cuid())
+  appointmentID       String
+  recipientID         String
+  type                AppointmentNotificationType
+  channel             NotificationChannel
+  status              NotificationDeliveryStatus  @default(PENDING)
+  scheduledAt         DateTime
+  nextAttemptAt       DateTime?
+  processingStartedAt DateTime?
+  sentAt              DateTime?
+  attempts            Int                         @default(0)
+  failureReason       String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -286,6 +296,23 @@ model AppointmentNotification {
 
   @@unique([appointmentID, recipientID, type, channel])
   @@index([status, scheduledAt])
+  @@index([status, nextAttemptAt])
+}
+
+model PushDeviceToken {
+  id       String             @id @default(cuid())
+  userID   String
+  token    String             @unique
+  platform PushDevicePlatform
+  enabled  Boolean            @default(true)
+
+  lastRegisteredAt DateTime @default(now())
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  user User @relation(fields: [userID], references: [id], onDelete: Cascade)
+
+  @@index([userID, enabled])
 }
 
 model Specialty {

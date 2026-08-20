@@ -37,22 +37,48 @@ const envSchema=z.object({
     GOOGLE_CLIENT_ID: z.string().optional(),
     GOOGLE_CLIENT_SECRET: z.string().optional(),
     GOOGLE_REFRESH_TOKEN: z.string().optional(),
+    FIREBASE_PUSH_ENABLED: z
+        .enum(["true", "false"])
+        .default("false")
+        .transform((value) => value === "true"),
+    FIREBASE_PROJECT_ID: z.string().optional(),
+    FIREBASE_CLIENT_EMAIL: z.string().email().optional(),
+    FIREBASE_PRIVATE_KEY: z.string().optional(),
+    NOTIFICATION_BATCH_SIZE: z.coerce.number().int().positive().max(500).default(50),
+    NOTIFICATION_MAX_ATTEMPTS: z.coerce.number().int().positive().default(5),
+    NOTIFICATION_RETRY_MINUTES: z.coerce.number().int().positive().default(5),
+    NOTIFICATION_PROCESSING_TIMEOUT_MINUTES: z.coerce.number().int().positive().default(10),
+    NOTIFICATION_MAX_AGE_HOURS: z.coerce.number().int().positive().default(24),
 }).superRefine((env, ctx) => {
-    if (!env.GOOGLE_MEET_ENABLED) {
-        return;
+    if (env.GOOGLE_MEET_ENABLED) {
+        for (const key of [
+            "GOOGLE_CLIENT_ID",
+            "GOOGLE_CLIENT_SECRET",
+            "GOOGLE_REFRESH_TOKEN",
+        ] as const) {
+            if (!env[key]) {
+                ctx.addIssue({
+                    code: "custom",
+                    path: [key],
+                    message: `${key} is required when GOOGLE_MEET_ENABLED=true`,
+                });
+            }
+        }
     }
 
-    for (const key of [
-        "GOOGLE_CLIENT_ID",
-        "GOOGLE_CLIENT_SECRET",
-        "GOOGLE_REFRESH_TOKEN",
-    ] as const) {
-        if (!env[key]) {
-            ctx.addIssue({
-                code: "custom",
-                path: [key],
-                message: `${key} is required when GOOGLE_MEET_ENABLED=true`,
-            });
+    if (env.FIREBASE_PUSH_ENABLED) {
+        for (const key of [
+            "FIREBASE_PROJECT_ID",
+            "FIREBASE_CLIENT_EMAIL",
+            "FIREBASE_PRIVATE_KEY",
+        ] as const) {
+            if (!env[key]) {
+                ctx.addIssue({
+                    code: "custom",
+                    path: [key],
+                    message: `${key} is required when FIREBASE_PUSH_ENABLED=true`,
+                });
+            }
         }
     }
 });
@@ -108,6 +134,22 @@ export const config={
         clientId: parsedEnv.data.GOOGLE_CLIENT_ID,
         clientSecret: parsedEnv.data.GOOGLE_CLIENT_SECRET,
         refreshToken: parsedEnv.data.GOOGLE_REFRESH_TOKEN,
+    },
+
+    firebase: {
+        pushEnabled: parsedEnv.data.FIREBASE_PUSH_ENABLED,
+        projectId: parsedEnv.data.FIREBASE_PROJECT_ID,
+        clientEmail: parsedEnv.data.FIREBASE_CLIENT_EMAIL,
+        privateKey: parsedEnv.data.FIREBASE_PRIVATE_KEY,
+    },
+
+    notification: {
+        batchSize: parsedEnv.data.NOTIFICATION_BATCH_SIZE,
+        maxAttempts: parsedEnv.data.NOTIFICATION_MAX_ATTEMPTS,
+        retryMinutes: parsedEnv.data.NOTIFICATION_RETRY_MINUTES,
+        processingTimeoutMinutes:
+            parsedEnv.data.NOTIFICATION_PROCESSING_TIMEOUT_MINUTES,
+        maxAgeHours: parsedEnv.data.NOTIFICATION_MAX_AGE_HOURS,
     },
 }
 

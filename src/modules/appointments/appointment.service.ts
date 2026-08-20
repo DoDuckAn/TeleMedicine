@@ -506,14 +506,23 @@ export async function confirmAppointment(
             data: { status: NotificationDeliveryStatus.CANCELLED },
         });
 
-        await tx.appointmentNotification.create({
-            data: {
-                appointmentID: appointmentId,
-                recipientID: appointment.patientID,
-                type: AppointmentNotificationType.REQUEST_CONFIRMED,
-                channel: NotificationChannel.PUSH,
-                scheduledAt: now,
-            },
+        await tx.appointmentNotification.createMany({
+            data: [
+                {
+                    appointmentID: appointmentId,
+                    recipientID: appointment.patientID,
+                    type: AppointmentNotificationType.REQUEST_CONFIRMED,
+                    channel: NotificationChannel.PUSH,
+                    scheduledAt: now,
+                },
+                {
+                    appointmentID: appointmentId,
+                    recipientID: appointment.patientID,
+                    type: AppointmentNotificationType.REQUEST_CONFIRMED,
+                    channel: NotificationChannel.SMS,
+                    scheduledAt: now,
+                },
+            ],
         });
 
         const reminders = [
@@ -817,14 +826,23 @@ export async function rejectAppointment(
             data: { status: NotificationDeliveryStatus.CANCELLED },
         });
 
-        await tx.appointmentNotification.create({
-            data: {
-                appointmentID: appointmentId,
-                recipientID: appointment.patientID,
-                type: AppointmentNotificationType.REQUEST_REJECTED,
-                channel: NotificationChannel.PUSH,
-                scheduledAt: now,
-            },
+        await tx.appointmentNotification.createMany({
+            data: [
+                {
+                    appointmentID: appointmentId,
+                    recipientID: appointment.patientID,
+                    type: AppointmentNotificationType.REQUEST_REJECTED,
+                    channel: NotificationChannel.PUSH,
+                    scheduledAt: now,
+                },
+                {
+                    appointmentID: appointmentId,
+                    recipientID: appointment.patientID,
+                    type: AppointmentNotificationType.REQUEST_REJECTED,
+                    channel: NotificationChannel.SMS,
+                    scheduledAt: now,
+                },
+            ],
         });
 
         return appointment;
