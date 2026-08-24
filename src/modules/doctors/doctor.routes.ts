@@ -8,6 +8,8 @@ import * as DoctorController from "./doctor.controller.js";
 import * as DoctorSchema from "./doctor.schema.js";
 import * as AppointmentController from "../appointments/appointment.controller.js";
 import * as AppointmentSchema from "../appointments/appointment.schema.js";
+import * as DoctorReviewController from "../doctor-reviews/doctor-review.controller.js";
+import * as DoctorReviewSchema from "../doctor-reviews/doctor-review.schema.js";
 
 export const doctorRouter = Router();
 
@@ -21,6 +23,13 @@ doctorRouter.get(
   "/:doctorId/schedule",
   validateParams(AppointmentSchema.doctorAvailabilityParamSchema),
   asyncHandler(AppointmentController.availability),
+);
+
+doctorRouter.get(
+  "/:doctorId/reviews",
+  validateParams(DoctorSchema.doctorIdParamSchema),
+  validateQuery(DoctorReviewSchema.publicDoctorReviewsQuerySchema),
+  asyncHandler(DoctorReviewController.listPublicDoctorReviews),
 );
 
 // doctorRouter.get(

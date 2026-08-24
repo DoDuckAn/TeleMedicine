@@ -58,6 +58,11 @@ enum DoctorScheduleOverrideType {
   UNAVAILABLE
 }
 
+enum DoctorReviewStatus {
+  PUBLISHED
+  HIDDEN
+}
+
 enum AppointmentNotificationType {
   REQUEST_CREATED
   REQUEST_CONFIRMED
@@ -112,6 +117,7 @@ model User {
   scheduleOverridesCreated DoctorScheduleOverride[]   @relation("ScheduleOverrideCreatedBy")
   appointmentNotifications AppointmentNotification[]  @relation("AppointmentNotificationRecipient")
   pushDeviceTokens         PushDeviceToken[]
+  doctorReviewsModerated   DoctorReview[]               @relation("DoctorReviewModeratedBy")
 
   @@index([role, status])
 }
@@ -160,21 +166,29 @@ model DoctorProfile {
 }
 
 model DoctorReview {
-  id        String  @id @default(cuid())
-  doctorID  String
-  patientID String
-  rating    Int
-  comment   String?
+  id            String             @id @default(cuid())
+  doctorID      String
+  patientID     String
+  rating        Int
+  comment       String?
+  doctorReply   String?
+  repliedAt     DateTime?
+  status        DoctorReviewStatus @default(PUBLISHED)
+  hiddenReason  String?
+  moderatedByID String?
+  moderatedAt   DateTime?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  doctor  DoctorProfile  @relation(fields: [doctorID], references: [userID], onDelete: Cascade)
-  patient PatientProfile @relation(fields: [patientID], references: [userID], onDelete: Cascade)
+  doctor      DoctorProfile  @relation(fields: [doctorID], references: [userID], onDelete: Cascade)
+  patient     PatientProfile @relation(fields: [patientID], references: [userID], onDelete: Cascade)
+  moderatedBy User?          @relation("DoctorReviewModeratedBy", fields: [moderatedByID], references: [id], onDelete: SetNull)
 
+  @@index([doctorID, status, rating, createdAt])
   @@unique([doctorID, patientID])
-  @@index([doctorID, rating, createdAt])
   @@index([patientID, createdAt])
+  @@index([status, createdAt])
 }
 
 model Appointment {

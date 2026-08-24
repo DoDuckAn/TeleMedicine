@@ -1,5 +1,6 @@
 import type { Prisma } from "../../../generated/prisma/client.js";
 import {
+  DoctorReviewStatus,
   SpecialtyStatus,
   UserStatus,
 } from "../../../generated/prisma/enums.js";
@@ -30,6 +31,13 @@ const doctorListSelect = {
   bio: true,
   specialties: activeSpecialtiesSelect,
 } as const;
+
+function maskPatientName(fullName:string){
+  const parts=fullName.trim().split(/\s+/).filter(Boolean);
+  if(parts.length===0)return "Benh nhan";
+  if(parts.length===1)return `${parts[0]!.charAt(0)}***`;
+  return `${parts[0]} ${parts.slice(1).map((part)=>`${part.charAt(0)}***`).join(" ")}`;
+}
 
 function createDoctorWhere(query: ListDoctorsQuery): Prisma.DoctorProfileWhereInput {
   const searchFilters: Prisma.DoctorProfileWhereInput[] = [];
@@ -77,7 +85,10 @@ async function getRatingSummaries(doctorIds: string[]) {
 
   const summaries = await prisma.doctorReview.groupBy({
     by: ["doctorID"],
-    where: { doctorID: { in: doctorIds } },
+    where: {
+      doctorID: { in: doctorIds },
+      status:DoctorReviewStatus.PUBLISHED,
+    },
     _avg: { rating: true },
     _count: { _all: true },
   });
@@ -178,10 +189,13 @@ export async function getDoctorDetail(doctorId: string) {
     select: {
       ...doctorListSelect,
       reviews: {
+        where:{status:DoctorReviewStatus.PUBLISHED},
         select: {
           id: true,
           rating: true,
           comment: true,
+          doctorReply:true,
+          repliedAt:true,
           createdAt: true,
           patient: {
             select: { fullName: true },
@@ -198,14 +212,24 @@ export async function getDoctorDetail(doctorId: string) {
   }
 
   const rating = await prisma.doctorReview.aggregate({
-    where: { doctorID: doctorId },
+    where: {
+      doctorID: doctorId,
+      status:DoctorReviewStatus.PUBLISHED,
+    },
     _avg: { rating: true },
     _count: { _all: true },
   });
 
+  const {reviews,...doctorData}=doctor;
   return {
-    ...doctor,
-    ratingAverage: rating._avg.rating,
+    ...doctorData,
+    reviews:reviews.map(({patient,...review})=>({
+      ...review,
+      patientDisplayName:maskPatientName(patient.fullName),
+    })),
+    ratingAverage: rating._avg.rating===null
+      ?null
+      :Math.round(rating._avg.rating*10)/10,
     reviewCount: rating._count._all,
   };
 }
