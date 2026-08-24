@@ -44,6 +44,22 @@ appointmentRouter.get(
 );
 
 appointmentRouter.get(
+  "/patient/history",
+  requireAuth,
+  requireRole("PATIENT"),
+  validateQuery(appointmentHistoryQuerySchema),
+  asyncHandler(AppointmentController.getPatientMedicalHistory),
+);
+
+appointmentRouter.get(
+  "/doctor/history",
+  requireAuth,
+  requireRole("DOCTOR"),
+  validateQuery(appointmentHistoryQuerySchema),
+  asyncHandler(AppointmentController.getDoctorConsultationHistory),
+);
+
+appointmentRouter.get(
   "/admin/all",
   requireAuth,
   requireRole("ADMIN"),

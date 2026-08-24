@@ -2,7 +2,6 @@ import {
   AppointmentActor,
   AppointmentNotificationType,
   AppointmentStatus,
-  NotificationChannel,
   NotificationDeliveryStatus,
   type UserRole,
   UserStatus,
@@ -26,6 +25,7 @@ import type {
   DoctorAppointmentListQuery,
 } from "./appointment.schema.js";
 import { checkSlotAvailable } from "./availability.service.js";
+import { createAppointmentEvents } from "./appointment.notification.js";
 
 const doctorAppointmentListSelect = {
     id: true,
@@ -297,6 +297,144 @@ export function getAllAppointments(query: AdminAppointmentListQuery) {
     );
 }
 
+export async function getPatientMedicalHistory(
+    patientId:string,
+    query:AppointmentHistoryQuery,
+){
+    const now=new Date();
+    const baseWhere=createAppointmentHistoryWhere(query);
+    const where:Prisma.AppointmentWhereInput={
+        ...baseWhere,
+        patientID:patientId,
+        endAt:{lte:now},
+    };
+    const skip=(query.page-1)*query.limit;
+    const [items,total]=await prisma.$transaction([
+        prisma.appointment.findMany({
+            where,
+            select:{
+                id:true,
+                startAt:true,
+                endAt:true,
+                visitReason:true,
+                status:true,
+                rejectionReason:true,
+                cancellationReason:true,
+                completedAt:true,
+                doctor:{select:{
+                    userID:true,
+                    fullName:true,
+                    avatarUrl:true,
+                    specialties:{select:{id:true,code:true,name:true}},
+                }},
+            },
+            orderBy:[{startAt:query.order},{id:query.order}],
+            skip,
+            take:query.limit,
+        }),
+        prisma.appointment.count({where}),
+    ]);
+    const doctorIds=[...new Set(items.map((item)=>item.doctor.userID))];
+    const reviews=doctorIds.length===0?[]:await prisma.doctorReview.findMany({
+        where:{patientID:patientId,doctorID:{in:doctorIds}},
+        select:{
+            id:true,
+            doctorID:true,
+            rating:true,
+            comment:true,
+            doctorReply:true,
+            repliedAt:true,
+            status:true,
+            createdAt:true,
+        },
+    });
+    const reviewByDoctor=new Map(reviews.map((review)=>[review.doctorID,review]));
+    return {
+        items:items.map((item)=>({
+            ...item,
+            doctorReview:reviewByDoctor.get(item.doctor.userID)??null,
+        })),
+        pagination:{
+            page:query.page,
+            limit:query.limit,
+            total,
+            totalPages:Math.ceil(total/query.limit),
+        },
+    };
+}
+
+export async function getDoctorConsultationHistory(
+    doctorId:string,
+    query:AppointmentHistoryQuery,
+){
+    const dateWhere=createAppointmentHistoryWhere(query).startAt;
+    const where:Prisma.AppointmentWhereInput={
+        doctorID:doctorId,
+        status:AppointmentStatus.COMPLETED,
+        ...(dateWhere?{startAt:dateWhere}:{}),
+    };
+    const skip=(query.page-1)*query.limit;
+    const [items,total]=await prisma.$transaction([
+        prisma.appointment.findMany({
+            where,
+            select:{
+                id:true,
+                startAt:true,
+                endAt:true,
+                completedAt:true,
+                visitReason:true,
+                status:true,
+                patient:{select:{
+                    userID:true,
+                    fullName:true,
+                    dateOfBirth:true,
+                    gender:true,
+                    avatar:true,
+                }},
+            },
+            orderBy:[{startAt:query.order},{id:query.order}],
+            skip,
+            take:query.limit,
+        }),
+        prisma.appointment.count({where}),
+    ]);
+    const patientIds=[...new Set(items.map((item)=>item.patient.userID))];
+    const reviews=patientIds.length===0?[]:await prisma.doctorReview.findMany({
+        where:{doctorID:doctorId,patientID:{in:patientIds}},
+        select:{
+            id:true,
+            patientID:true,
+            rating:true,
+            comment:true,
+            doctorReply:true,
+            repliedAt:true,
+            status:true,
+            createdAt:true,
+        },
+    });
+    const reviewByPatient=new Map(reviews.map((review)=>[review.patientID,review]));
+    return {
+        items:items.map((item)=>({
+            ...item,
+            scheduledDurationMinutes:Math.round(
+                (item.endAt.getTime()-item.startAt.getTime())/60000,
+            ),
+            actualDurationMinutes:item.completedAt
+                ?Math.max(0,Math.round(
+                    (item.completedAt.getTime()-item.startAt.getTime())/60000,
+                ))
+                :null,
+            reviewReceived:reviewByPatient.get(item.patient.userID)??null,
+        })),
+        pagination:{
+            page:query.page,
+            limit:query.limit,
+            total,
+            totalPages:Math.ceil(total/query.limit),
+        },
+    };
+}
+
 export async function getAppointmentDetail(
     currentUser: { id: string; role: UserRole },
     appointmentId: string,
@@ -506,24 +644,12 @@ export async function confirmAppointment(
             data: { status: NotificationDeliveryStatus.CANCELLED },
         });
 
-        await tx.appointmentNotification.createMany({
-            data: [
-                {
-                    appointmentID: appointmentId,
-                    recipientID: appointment.patientID,
-                    type: AppointmentNotificationType.REQUEST_CONFIRMED,
-                    channel: NotificationChannel.PUSH,
-                    scheduledAt: now,
-                },
-                {
-                    appointmentID: appointmentId,
-                    recipientID: appointment.patientID,
-                    type: AppointmentNotificationType.REQUEST_CONFIRMED,
-                    channel: NotificationChannel.SMS,
-                    scheduledAt: now,
-                },
-            ],
-        });
+        await createAppointmentEvents(tx,[{
+            appointmentID:appointmentId,
+            recipientID:appointment.patientID,
+            type:AppointmentNotificationType.REQUEST_CONFIRMED,
+            scheduledAt:now,
+        }]);
 
         const reminders = [
             {
@@ -544,25 +670,20 @@ export async function confirmAppointment(
             .filter((reminder) => reminder.scheduledAt.getTime() > now.getTime());
 
         if (reminders.length > 0) {
-            await tx.appointmentNotification.createMany({
-                data: reminders.flatMap((reminder) => [
-                    {
-                        appointmentID: appointmentId,
-                        recipientID: appointment.patientID,
-                        type: reminder.type,
-                        channel: NotificationChannel.PUSH,
-                        scheduledAt: reminder.scheduledAt,
-                    },
-                    {
-                        appointmentID: appointmentId,
-                        recipientID: doctorId,
-                        type: reminder.type,
-                        channel: NotificationChannel.PUSH,
-                        scheduledAt: reminder.scheduledAt,
-                    },
-                ]),
-                skipDuplicates: true,
-            });
+            await createAppointmentEvents(tx,reminders.flatMap((reminder)=>[
+                {
+                    appointmentID:appointmentId,
+                    recipientID:appointment.patientID,
+                    type:reminder.type,
+                    scheduledAt:reminder.scheduledAt,
+                },
+                {
+                    appointmentID:appointmentId,
+                    recipientID:doctorId,
+                    type:reminder.type,
+                    scheduledAt:reminder.scheduledAt,
+                },
+            ]));
         }
 
         return appointment;
@@ -631,6 +752,7 @@ export async function completeAppointment(
         select: {
             id: true,
             doctorID: true,
+            patientID:true,
             startAt: true,
             status: true,
             meetingSpaceName: true,
@@ -715,6 +837,17 @@ export async function completeAppointment(
             },
             data: { status: NotificationDeliveryStatus.CANCELLED },
         });
+
+        await tx.userNotification.deleteMany({
+            where:{appointmentID:appointmentId,scheduledAt:{gt:now}},
+        });
+
+        await createAppointmentEvents(tx,[{
+            appointmentID:appointmentId,
+            recipientID:appointment.patientID,
+            type:AppointmentNotificationType.APPOINTMENT_COMPLETED,
+            scheduledAt:now,
+        }]);
 
         return tx.appointment.findUniqueOrThrow({
             where: { id: appointmentId },
@@ -826,24 +959,12 @@ export async function rejectAppointment(
             data: { status: NotificationDeliveryStatus.CANCELLED },
         });
 
-        await tx.appointmentNotification.createMany({
-            data: [
-                {
-                    appointmentID: appointmentId,
-                    recipientID: appointment.patientID,
-                    type: AppointmentNotificationType.REQUEST_REJECTED,
-                    channel: NotificationChannel.PUSH,
-                    scheduledAt: now,
-                },
-                {
-                    appointmentID: appointmentId,
-                    recipientID: appointment.patientID,
-                    type: AppointmentNotificationType.REQUEST_REJECTED,
-                    channel: NotificationChannel.SMS,
-                    scheduledAt: now,
-                },
-            ],
-        });
+        await createAppointmentEvents(tx,[{
+            appointmentID:appointmentId,
+            recipientID:appointment.patientID,
+            type:AppointmentNotificationType.REQUEST_REJECTED,
+            scheduledAt:now,
+        }]);
 
         return appointment;
     });
@@ -980,6 +1101,10 @@ export async function cancelAppointment(
             data: { status: NotificationDeliveryStatus.CANCELLED },
         });
 
+        await tx.userNotification.deleteMany({
+            where:{appointmentID:appointmentId,scheduledAt:{gt:now}},
+        });
+
         const recipientIds =
             currentUser.role === "ADMIN"
                 ? [appointment.patientID, appointment.doctorID]
@@ -989,16 +1114,12 @@ export async function cancelAppointment(
                           : appointment.patientID,
                   ];
 
-        await tx.appointmentNotification.createMany({
-            data: recipientIds.map((recipientID) => ({
-                appointmentID: appointmentId,
-                recipientID,
-                type: AppointmentNotificationType.APPOINTMENT_CANCELLED,
-                channel: NotificationChannel.PUSH,
-                scheduledAt: now,
-            })),
-            skipDuplicates: true,
-        });
+        await createAppointmentEvents(tx,recipientIds.map((recipientID)=>({
+            appointmentID:appointmentId,
+            recipientID,
+            type:AppointmentNotificationType.APPOINTMENT_CANCELLED,
+            scheduledAt:now,
+        })));
 
         return tx.appointment.findUniqueOrThrow({
             where: { id: appointmentId },
@@ -1145,15 +1266,12 @@ export async function createAppointment(input:CreateAppointmentInput){
                     data: { status: NotificationDeliveryStatus.CANCELLED },
                 });
 
-                await tx.appointmentNotification.create({
-                    data: {
-                        appointmentID: reservation.appointmentID,
-                        recipientID: reservation.patientID,
-                        type: AppointmentNotificationType.REQUEST_EXPIRED,
-                        channel: NotificationChannel.PUSH,
-                        scheduledAt: now,
-                    },
-                });
+                await createAppointmentEvents(tx,[{
+                    appointmentID:reservation.appointmentID,
+                    recipientID:reservation.patientID,
+                    type:AppointmentNotificationType.REQUEST_EXPIRED,
+                    scheduledAt:now,
+                }]);
             }
         }
 
@@ -1191,15 +1309,20 @@ export async function createAppointment(input:CreateAppointmentInput){
             },
         });
 
-        await tx.appointmentNotification.create({
-            data: {
-                appointmentID: appointment.id,
-                recipientID: input.doctorId,
-                type: AppointmentNotificationType.REQUEST_CREATED,
-                channel: NotificationChannel.PUSH,
-                scheduledAt: now,
+        await createAppointmentEvents(tx,[
+            {
+                appointmentID:appointment.id,
+                recipientID:input.doctorId,
+                type:AppointmentNotificationType.REQUEST_CREATED,
+                scheduledAt:now,
             },
-        });
+            {
+                appointmentID:appointment.id,
+                recipientID:input.patientId,
+                type:AppointmentNotificationType.BOOKING_CREATED,
+                scheduledAt:now,
+            },
+        ]);
 
         return appointment;
       });

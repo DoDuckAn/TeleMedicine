@@ -69,6 +69,22 @@ export async function getOwnAppointmentHistory(req: Request, res: Response) {
   );
 }
 
+export async function getPatientMedicalHistory(req:Request,res:Response){
+  const query=appointmentHistoryQuerySchema.parse(req.query);
+  return ok(
+    res,
+    await AppointmentService.getPatientMedicalHistory(req.user!.id,query),
+  );
+}
+
+export async function getDoctorConsultationHistory(req:Request,res:Response){
+  const query=appointmentHistoryQuerySchema.parse(req.query);
+  return ok(
+    res,
+    await AppointmentService.getDoctorConsultationHistory(req.user!.id,query),
+  );
+}
+
 export async function getAllAppointments(req: Request, res: Response) {
   const query = adminAppointmentListQuerySchema.parse(req.query);
   return ok(res, await AppointmentService.getAllAppointments(query));

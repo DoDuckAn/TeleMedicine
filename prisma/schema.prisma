@@ -64,6 +64,7 @@ enum DoctorReviewStatus {
 }
 
 enum AppointmentNotificationType {
+  BOOKING_CREATED
   REQUEST_CREATED
   REQUEST_CONFIRMED
   REQUEST_REJECTED
@@ -116,6 +117,8 @@ model User {
   appointmentStatusChanges AppointmentStatusHistory[] @relation("AppointmentStatusChangedBy")
   scheduleOverridesCreated DoctorScheduleOverride[]   @relation("ScheduleOverrideCreatedBy")
   appointmentNotifications AppointmentNotification[]  @relation("AppointmentNotificationRecipient")
+  userNotifications        UserNotification[]
+  notificationPreference   NotificationPreference?
   pushDeviceTokens         PushDeviceToken[]
   doctorReviewsModerated   DoctorReview[]               @relation("DoctorReviewModeratedBy")
 
@@ -225,6 +228,7 @@ model Appointment {
   slotReservation AppointmentSlotReservation?
   statusHistory   AppointmentStatusHistory[]
   notifications   AppointmentNotification[]
+  userNotifications UserNotification[]
 
   @@index([doctorID, startAt, status])
   @@index([patientID, startAt, status])
@@ -311,6 +315,48 @@ model AppointmentNotification {
   @@unique([appointmentID, recipientID, type, channel])
   @@index([status, scheduledAt])
   @@index([status, nextAttemptAt])
+}
+
+model UserNotification {
+  id            String                      @id @default(cuid())
+  appointmentID String
+  recipientID   String
+  type          AppointmentNotificationType
+  scheduledAt   DateTime
+  readAt        DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  appointment Appointment @relation(fields: [appointmentID], references: [id], onDelete: Cascade)
+  recipient   User        @relation(fields: [recipientID], references: [id], onDelete: Cascade)
+
+  @@unique([appointmentID, recipientID, type])
+  @@index([recipientID, scheduledAt])
+  @@index([recipientID, readAt, scheduledAt])
+}
+
+model NotificationPreference {
+  userID String @id
+
+  pushEnabled Boolean @default(true)
+  smsEnabled  Boolean @default(true)
+
+  bookingCreatedEnabled       Boolean @default(true)
+  requestCreatedEnabled       Boolean @default(true)
+  requestConfirmedEnabled     Boolean @default(true)
+  requestRejectedEnabled      Boolean @default(true)
+  requestExpiredEnabled       Boolean @default(true)
+  appointmentCancelledEnabled Boolean @default(true)
+  appointmentCompletedEnabled Boolean @default(true)
+  reminder1HourEnabled        Boolean @default(true)
+  reminder15MinutesEnabled    Boolean @default(true)
+  doctorNoShowEnabled         Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userID], references: [id], onDelete: Cascade)
 }
 
 model PushDeviceToken {

@@ -73,6 +73,10 @@ async function markOverdueAppointmentsNoShow(now: Date) {
                     data: { status: NotificationDeliveryStatus.CANCELLED },
                 });
 
+                await tx.userNotification.deleteMany({
+                    where:{appointmentID:appointment.id,scheduledAt:{gt:now}},
+                });
+
                 return true;
             });
 

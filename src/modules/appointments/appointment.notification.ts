@@ -4,6 +4,7 @@ import {
     NotificationChannel,
     NotificationDeliveryStatus,
 } from "../../../generated/prisma/enums.js";
+import type { Prisma } from "../../../generated/prisma/client.js";
 import { config } from "../../config/env.js";
 import { sendFirebasePush } from "../../lib/firebase.js";
 import { prisma } from "../../lib/prisma.js";
@@ -22,7 +23,12 @@ const notificationSelect = {
             patient: { select: { fullName: true } },
         },
     },
-    recipient: { select: { phone: true } },
+    recipient: {
+        select: {
+            phone: true,
+            notificationPreference: true,
+        },
+    },
 } as const;
 
 type DeliveryNotification = Awaited<
@@ -37,12 +43,28 @@ function formatAppointmentTime(date: Date) {
     );
 }
 
-function buildNotificationMessage(notification: DeliveryNotification) {
+type NotificationMessageSource = {
+    type: AppointmentNotificationType;
+    appointment: {
+        startAt: Date;
+        doctor: { fullName: string };
+        patient: { fullName: string };
+    };
+};
+
+export function buildAppointmentNotificationMessage(
+    notification: NotificationMessageSource,
+) {
     const time = formatAppointmentTime(notification.appointment.startAt);
     const doctorName = notification.appointment.doctor.fullName;
     const patientName = notification.appointment.patient.fullName;
 
     switch (notification.type) {
+        case AppointmentNotificationType.BOOKING_CREATED:
+            return {
+                title: "Yeu cau dat lich da duoc gui",
+                body: `Ban da gui yeu cau dat lich voi bac si ${doctorName} luc ${time}.`,
+            };
         case AppointmentNotificationType.REQUEST_CREATED:
             return {
                 title: "Yeu cau dat lich moi",
@@ -79,9 +101,95 @@ function buildNotificationMessage(notification: DeliveryNotification) {
                 body: `Lich hen cua ban se bat dau luc ${time}, con 15 phut nua.`,
             };
         case AppointmentNotificationType.APPOINTMENT_COMPLETED:
+            return {
+                title: "Buoi kham da hoan thanh",
+                body: `Buoi kham voi bac si ${doctorName} luc ${time} da hoan thanh.`,
+            };
         case AppointmentNotificationType.DOCTOR_NO_SHOW:
-            throw new Error(`Unsupported notification type: ${notification.type}`);
+            return {
+                title: "Buoi kham khong dien ra",
+                body: `Buoi kham voi bac si ${doctorName} luc ${time} khong dien ra.`,
+            };
     }
+}
+
+const preferenceFieldByType={
+    [AppointmentNotificationType.BOOKING_CREATED]:"bookingCreatedEnabled",
+    [AppointmentNotificationType.REQUEST_CREATED]:"requestCreatedEnabled",
+    [AppointmentNotificationType.REQUEST_CONFIRMED]:"requestConfirmedEnabled",
+    [AppointmentNotificationType.REQUEST_REJECTED]:"requestRejectedEnabled",
+    [AppointmentNotificationType.REQUEST_EXPIRED]:"requestExpiredEnabled",
+    [AppointmentNotificationType.APPOINTMENT_CANCELLED]:"appointmentCancelledEnabled",
+    [AppointmentNotificationType.APPOINTMENT_COMPLETED]:"appointmentCompletedEnabled",
+    [AppointmentNotificationType.REMINDER_1_HOUR]:"reminder1HourEnabled",
+    [AppointmentNotificationType.REMINDER_15_MINUTES]:"reminder15MinutesEnabled",
+    [AppointmentNotificationType.DOCTOR_NO_SHOW]:"doctorNoShowEnabled",
+} as const;
+
+export function isAppointmentEventEnabled(
+    preference:DeliveryNotification["recipient"]["notificationPreference"],
+    type:AppointmentNotificationType,
+){
+    if(!preference)return true;
+    return preference[preferenceFieldByType[type]];
+}
+
+export function getEnabledAppointmentNotificationTypes(
+    preference:DeliveryNotification["recipient"]["notificationPreference"],
+){
+    return Object.values(AppointmentNotificationType).filter((type)=>(
+        isAppointmentEventEnabled(preference,type)
+    ));
+}
+
+export function isAppointmentNotificationEnabled(
+    preference:DeliveryNotification["recipient"]["notificationPreference"],
+    type:AppointmentNotificationType,
+    channel:NotificationChannel,
+){
+    if(!isAppointmentEventEnabled(preference,type))return false;
+    if(!preference)return true;
+    return channel===NotificationChannel.PUSH
+        ?preference.pushEnabled
+        :preference.smsEnabled;
+}
+
+export type CreateAppointmentEventInput={
+    appointmentID:string;
+    recipientID:string;
+    type:AppointmentNotificationType;
+    scheduledAt:Date;
+    channels?:NotificationChannel[];
+};
+
+export async function createAppointmentEvents(
+    tx:Prisma.TransactionClient,
+    events:CreateAppointmentEventInput[],
+){
+    if(events.length===0)return;
+
+    await tx.userNotification.createMany({
+        data:events.map((event)=>({
+            appointmentID:event.appointmentID,
+            recipientID:event.recipientID,
+            type:event.type,
+            scheduledAt:event.scheduledAt,
+        })),
+        skipDuplicates:true,
+    });
+
+    await tx.appointmentNotification.createMany({
+        data:events.flatMap((event)=>(
+            event.channels??[NotificationChannel.PUSH,NotificationChannel.SMS]
+        ).map((channel)=>({
+            appointmentID:event.appointmentID,
+            recipientID:event.recipientID,
+            type:event.type,
+            channel,
+            scheduledAt:event.scheduledAt,
+        }))),
+        skipDuplicates:true,
+    });
 }
 
 async function deliverPush(notification: DeliveryNotification) {
@@ -94,7 +202,7 @@ async function deliverPush(notification: DeliveryNotification) {
         orderBy: { lastRegisteredAt: "desc" },
         take: 500,
     });
-    const message = buildNotificationMessage(notification);
+    const message = buildAppointmentNotificationMessage(notification);
     const result = await sendFirebasePush(
         devices.map((device) => device.token),
         {
@@ -125,7 +233,7 @@ async function deliverSms(notification: DeliveryNotification) {
         throw new Error("Recipient has no phone number");
     }
 
-    const message = buildNotificationMessage(notification);
+    const message = buildAppointmentNotificationMessage(notification);
     console.info("[SMS_LOG]", {
         notificationId: notification.id,
         to: notification.recipient.phone,
@@ -210,6 +318,24 @@ export async function sendDueAppointmentNotifications(now = new Date()) {
     let failedCount = 0;
 
     for (const notification of notifications) {
+        if(!isAppointmentNotificationEnabled(
+            notification.recipient.notificationPreference,
+            notification.type,
+            notification.channel,
+        )){
+            await prisma.appointmentNotification.updateMany({
+                where:{
+                    id:notification.id,
+                    status:NotificationDeliveryStatus.PENDING,
+                },
+                data:{
+                    status:NotificationDeliveryStatus.CANCELLED,
+                    failureReason:"Disabled by notification preference",
+                },
+            });
+            continue;
+        }
+
         const claimed = await prisma.appointmentNotification.updateMany({
             where: {
                 id: notification.id,

@@ -4,7 +4,6 @@ import {
   AppointmentNotificationType,
   AppointmentStatus,
   DoctorScheduleOverrideType,
-  NotificationChannel,
   NotificationDeliveryStatus,
   UserStatus,
 } from "../../../generated/prisma/enums.js";
@@ -12,6 +11,7 @@ import { ApiError } from "../../common/api-error.js";
 import { config } from "../../config/env.js";
 import { prisma } from "../../lib/prisma.js";
 import { cleanupAppointmentMeeting } from "../appointments/appointment.service.js";
+import { createAppointmentEvents } from "../appointments/appointment.notification.js";
 import {
   addDaysToDateString,
   clipRangesToWindow,
@@ -266,16 +266,19 @@ export async function createOverride(
         },
       });
 
-      await tx.appointmentNotification.createMany({
-        data: cancelledAppointments.map((appointment) => ({
-          appointmentID: appointment.id,
-          recipientID: appointment.patientID,
-          type: AppointmentNotificationType.APPOINTMENT_CANCELLED,
-          channel: NotificationChannel.PUSH,
-          scheduledAt: now,
-        })),
-        skipDuplicates: true,
+      await tx.userNotification.deleteMany({
+        where:{
+          appointmentID:{in:cancelledIds},
+          scheduledAt:{gt:now},
+        },
       });
+
+      await createAppointmentEvents(tx,cancelledAppointments.map((appointment)=>({
+        appointmentID:appointment.id,
+        recipientID:appointment.patientID,
+        type:AppointmentNotificationType.APPOINTMENT_CANCELLED,
+        scheduledAt:now,
+      })));
     }
 
     return { overrides, cancelledAppointments };
