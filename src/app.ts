@@ -8,6 +8,7 @@ import { specialtyRouter } from "./modules/specialties/specialty.routes.js";
 import { doctorRouter } from "./modules/doctors/doctor.routes.js";
 import { appointmentRouter } from "./modules/appointments/appointment.routes.js";
 import { notificationRouter } from "./modules/notifications/notification.routes.js";
+import { doctorScheduleRouter } from "./modules/schedule-overrides/schedule-override.routes.js";
 
 export const app = express();
 
@@ -21,6 +22,7 @@ app.use("/api/v1/specialties", specialtyRouter);
 app.use("/api/v1/doctors", doctorRouter);
 app.use("/api/v1/appointments", appointmentRouter);
 app.use("/api/v1/notifications", notificationRouter);
+app.use("/api/v1/doctor-schedule", doctorScheduleRouter);
 
 app.get("/api/v1/health", (_req, res) => {
   res.json({
