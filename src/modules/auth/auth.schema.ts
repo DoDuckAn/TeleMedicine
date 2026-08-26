@@ -2,8 +2,8 @@
 import { Gender } from "../../../generated/prisma/enums.js";
 import { weeklyScheduleSchema } from "../doctors/doctor.schema.js";
 
-export const requestRegisterOtpSchema = z.object({
-  phone: z.string().trim().min(10).max(11),
+export const registerPatientSchema=z.object({
+  firebaseIdToken:z.string().trim().min(100).max(4096),
   fullName: z.string().trim().min(2).max(72),
   dateOfBirth: z.coerce.date(),
   gender: z
@@ -11,27 +11,10 @@ export const requestRegisterOtpSchema = z.object({
     .default(Gender.UNSPECIFIED),
 });
 
-export type RequestRegisterOtpInput = z.infer<typeof requestRegisterOtpSchema>;
-
-export const registerOtpPayloadSchema = requestRegisterOtpSchema;
-export type RegisterOtpPayloadInput = z.infer<typeof registerOtpPayloadSchema>;
-
-export const verifyRegisterOtpSchema = z.object({
-  phone: z.string().trim().min(10).max(11),
-  otp: z.string().trim().length(6),
-});
-
-export type VerifyRegisterOtpInput = z.infer<typeof verifyRegisterOtpSchema>;
-
-export const requestPatientLoginOtpSchema = z.object({
-  phone: z.string().trim().min(10).max(11),
-});
-
-export type RequestPatientLoginOtpInput = z.infer<typeof requestPatientLoginOtpSchema>;
+export type RegisterPatientInput=z.infer<typeof registerPatientSchema>;
 
 export const loginPatientSchema = z.object({
-  phone: z.string().trim().min(10).max(11),
-  otp: z.string().trim().length(6),
+  firebaseIdToken:z.string().trim().min(100).max(4096),
 });
 
 export type LoginPatientInput = z.infer<typeof loginPatientSchema>;
@@ -42,6 +25,36 @@ export const loginStaffSchema = z.object({
 });
 
 export type LoginStaffInput = z.infer<typeof loginStaffSchema>;
+
+const newPasswordFields={
+  newPassword:z.string().min(8).max(72),
+  confirmPassword:z.string().min(8).max(72),
+};
+
+export const requestDoctorPasswordResetOtpSchema=z.object({
+  email:z.string().trim().email().toLowerCase(),
+});
+
+export const changeDoctorPasswordSchema=z.object({
+  currentPassword:z.string().min(1).max(72),
+  otp:z.string().trim().regex(/^\d{6}$/),
+  ...newPasswordFields,
+}).refine((input)=>input.newPassword===input.confirmPassword,{
+  path:["confirmPassword"],
+  message:"Mat khau xac nhan khong khop",
+});
+
+export const resetDoctorPasswordSchema=z.object({
+  email:z.string().trim().email().toLowerCase(),
+  otp:z.string().trim().regex(/^\d{6}$/),
+  ...newPasswordFields,
+}).refine((input)=>input.newPassword===input.confirmPassword,{
+  path:["confirmPassword"],
+  message:"Mat khau xac nhan khong khop",
+});
+
+export type ChangeDoctorPasswordInput=z.infer<typeof changeDoctorPasswordSchema>;
+export type ResetDoctorPasswordInput=z.infer<typeof resetDoctorPasswordSchema>;
 
 export const createDoctorSchema = z.object({
   email: z.string().trim().email().toLowerCase(),
@@ -67,11 +80,3 @@ export const logoutSchema = z.object({
 });
 
 export type LogOutInput = z.infer<typeof logoutSchema>;
-
-export const testCodexUpdateSchema = z.object({
-  refreshToken: z.string().min(1),
-});
-
-export const testCodexDeleteSchema = z.object({
-  refreshToken: z.string().min(1),
-});

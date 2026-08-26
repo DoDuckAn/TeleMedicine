@@ -1,20 +1,10 @@
 ﻿import type { Request, Response } from "express";
 import { ok } from "../../common/response.js";
 import * as AuthService from "./auth.service.js";
+import * as DoctorPasswordService from "./doctor-password.service.js";
 
-export async function requestRegisterOtp(req: Request, res: Response) {
-  await AuthService.requestRegisterOtp(req.body);
-  return ok(res, { message: "Gui OTP dang ky thanh cong" }, 201);
-}
-
-export async function verifyRegisterOtp(req: Request, res: Response) {
-  const user = await AuthService.verifyRegisterOtp(req.body);
-  return ok(res, user, 201);
-}
-
-export async function requestPatientLoginOtp(req: Request, res: Response) {
-  await AuthService.requestPatientLoginOtp(req.body);
-  return ok(res, { message: "Gui OTP dang nhap thanh cong" }, 201);
+export async function registerPatient(req:Request,res:Response){
+  return ok(res,await AuthService.registerPatient(req.body),201);
 }
 
 export async function loginPatient(req: Request, res: Response) {
@@ -25,6 +15,14 @@ export async function loginPatient(req: Request, res: Response) {
 export async function loginStaff(req: Request, res: Response) {
   const result = await AuthService.loginStaff(req.body);
   return ok(res, result);
+}
+
+export async function requestDoctorPasswordResetOtp(req:Request,res:Response){
+  return ok(res,await DoctorPasswordService.requestDoctorPasswordResetOtp(req.body.email),201);
+}
+
+export async function resetDoctorPassword(req:Request,res:Response){
+  return ok(res,await DoctorPasswordService.resetDoctorPassword(req.body));
 }
 
 export async function createDoctor(req: Request, res: Response) {

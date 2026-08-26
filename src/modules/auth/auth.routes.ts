@@ -8,25 +8,13 @@ import { requireAuth, requireRole } from "../../middleware/auth.middleware.js";
 export const authRouter = Router();
 
 authRouter.post(
-  "/register/request-otp",
-  validateBody(AuthSchema.requestRegisterOtpSchema),
-  asyncHandler(AuthController.requestRegisterOtp),
+  "/register/patient",
+  validateBody(AuthSchema.registerPatientSchema),
+  asyncHandler(AuthController.registerPatient),
 );
 
 authRouter.post(
-  "/register/verify",
-  validateBody(AuthSchema.verifyRegisterOtpSchema),
-  asyncHandler(AuthController.verifyRegisterOtp),
-);
-
-authRouter.post(
-  "/login/patient/request-otp",
-  validateBody(AuthSchema.requestPatientLoginOtpSchema),
-  asyncHandler(AuthController.requestPatientLoginOtp),
-);
-
-authRouter.post(
-  "/login/patient/verify",
+  "/login/patient",
   validateBody(AuthSchema.loginPatientSchema),
   asyncHandler(AuthController.loginPatient),
 );
@@ -35,6 +23,18 @@ authRouter.post(
   "/login/staff",
   validateBody(AuthSchema.loginStaffSchema),
   asyncHandler(AuthController.loginStaff),
+);
+
+authRouter.post(
+  "/doctors/password/forgot/request-otp",
+  validateBody(AuthSchema.requestDoctorPasswordResetOtpSchema),
+  asyncHandler(AuthController.requestDoctorPasswordResetOtp),
+);
+
+authRouter.post(
+  "/doctors/password/forgot/reset",
+  validateBody(AuthSchema.resetDoctorPasswordSchema),
+  asyncHandler(AuthController.resetDoctorPassword),
 );
 
 authRouter.post(

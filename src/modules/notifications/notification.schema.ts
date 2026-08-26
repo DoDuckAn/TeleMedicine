@@ -39,7 +39,7 @@ export const updateNotificationPreferenceSchema=z
     .object({
         channels:z.object({
             push:z.boolean(),
-            sms:z.boolean(),
+            email:z.boolean(),
         }).partial().optional(),
         events:notificationEventSettingsSchema.optional(),
     })

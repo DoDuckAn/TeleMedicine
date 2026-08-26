@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { asyncHandler } from "../../common/async-handler.js";
 import {
+  validateBody,
   validateParams,
   validateQuery,
 } from "../../middleware/validate.middleware.js";
@@ -10,8 +11,51 @@ import * as AppointmentController from "../appointments/appointment.controller.j
 import * as AppointmentSchema from "../appointments/appointment.schema.js";
 import * as DoctorReviewController from "../doctor-reviews/doctor-review.controller.js";
 import * as DoctorReviewSchema from "../doctor-reviews/doctor-review.schema.js";
+import {requireAuth,requireRole} from "../../middleware/auth.middleware.js";
+import {avatarUpload} from "../../middleware/avatar.middleware.js";
+import * as ProfileController from "../profiles/profile.controller.js";
+import * as ProfileSchema from "../profiles/profile.schema.js";
+import * as AuthSchema from "../auth/auth.schema.js";
 
 export const doctorRouter = Router();
+
+doctorRouter.get(
+  "/me",
+  requireAuth,
+  requireRole("DOCTOR"),
+  asyncHandler(ProfileController.getDoctorProfile),
+);
+
+doctorRouter.patch(
+  "/me",
+  requireAuth,
+  requireRole("DOCTOR"),
+  validateBody(ProfileSchema.updateDoctorProfileSchema),
+  asyncHandler(ProfileController.updateDoctorProfile),
+);
+
+doctorRouter.patch(
+  "/me/password",
+  requireAuth,
+  requireRole("DOCTOR"),
+  validateBody(AuthSchema.changeDoctorPasswordSchema),
+  asyncHandler(ProfileController.changeDoctorPassword),
+);
+
+doctorRouter.post(
+  "/me/password/request-otp",
+  requireAuth,
+  requireRole("DOCTOR"),
+  asyncHandler(ProfileController.requestDoctorPasswordChangeOtp),
+);
+
+doctorRouter.post(
+  "/me/avatar",
+  requireAuth,
+  requireRole("DOCTOR"),
+  avatarUpload.single("avatar"),
+  asyncHandler(ProfileController.updateDoctorAvatar),
+);
 
 doctorRouter.get(
   "/",

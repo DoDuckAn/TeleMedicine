@@ -6,21 +6,17 @@ import {
   SpecialtyStatus,
   UserRole,
 } from "../../../generated/prisma/enums.js";
-import { createOtpCode, createOtpExpiresAt, hashOtp } from "../../lib/otp.js";
 import { prisma } from "../../lib/prisma.js";
-// import { sendSms } from "../../lib/speedsms.js";
+import {verifyFirebasePhoneIdToken} from "../../lib/firebase.js";
 import { createTokenId, hashToken } from "../../lib/token.js";
 import { signAccessToken, signRefreshToken, verifyRefreshToken } from "../../lib/jwt.js";
 import {
-  registerOtpPayloadSchema,
   type CreateDoctorInput,
   type LoginPatientInput,
   type LoginStaffInput,
   type LogOutInput,
   type RefreshInput,
-  type RequestPatientLoginOtpInput,
-  type RequestRegisterOtpInput,
-  type VerifyRegisterOtpInput,
+  type RegisterPatientInput,
 } from "./auth.schema.js";
 
 const SALT_BCRYPT = 10;
@@ -74,207 +70,103 @@ async function issueSession(user: SessionUser) {
   };
 }
 
-async function upsertOtp(params: {
-  phone: string;
-  purpose: "REGISTER" | "LOGIN";
-  content: string;
-  payloadJson?: unknown;
-}) {
-  const otpCode = createOtpCode();
+type PhoneTokenVerifier=(idToken:string)=>Promise<{uid:string;phone:string}>;
 
-  await prisma.otpCode.upsert({
-    where: { phoneNumber: params.phone },
-    update: {
-      purpose: params.purpose,
-      codeHash: hashOtp(otpCode),
-      expiresAt: createOtpExpiresAt(),
-      attempts: 0,
-      consumedAt: null,
-      payloadJson: params.payloadJson ?? {},
-    },
-    create: {
-      phoneNumber: params.phone,
-      purpose: params.purpose,
-      codeHash: hashOtp(otpCode),
-      expiresAt: createOtpExpiresAt(),
-      payloadJson: params.payloadJson ?? {},
-    },
-  });
-
-  console.info(`[OTP:${params.purpose}] phone=${params.phone} otp=${otpCode}`);
-  // await sendSms(params.phone, params.content.replace("{{otp}}", otpCode));
+function isPrismaUniqueError(error:unknown){
+  return typeof error==="object"&&error!==null&&"code" in error&&error.code==="P2002";
 }
 
-async function verifyOtpOrThrow(phone: string, otpCode: string, purpose: "REGISTER" | "LOGIN") {
-  const otp = await prisma.otpCode.findUnique({
-    where: { phoneNumber: phone },
-    select: {
-      purpose: true,
-      payloadJson: true,
-      codeHash: true,
-      consumedAt: true,
-      expiresAt: true,
-      attempts: true,
-    },
-  });
-
-  if (!otp || otp.purpose !== purpose) {
-    throw new ApiError(400, "OTP_NOT_FOUND", "Khong tim thay OTP hop le");
+async function getVerifiedPhone(idToken:string,verifier:PhoneTokenVerifier){
+  try{
+    return await verifier(idToken);
+  }catch{
+    throw new ApiError(401,"INVALID_FIREBASE_TOKEN","Firebase ID token khong hop le hoac da het han");
   }
-
-  if (otp.consumedAt) {
-    throw new ApiError(400, "OTP_ALREADY_USED", "OTP da duoc su dung");
-  }
-
-  if (otp.expiresAt < new Date()) {
-    throw new ApiError(400, "OTP_EXPIRED", "OTP da het han");
-  }
-
-  if (otp.attempts >= config.otp.maxAttempts) {
-    throw new ApiError(429, "OTP_MAX_ATTEMPTS", "Da vuot qua so lan sai cho phep");
-  }
-
-  if (hashOtp(otpCode) !== otp.codeHash) {
-    await prisma.otpCode.updateMany({
-      where: { phoneNumber: phone },
-      data: { attempts: { increment: 1 } },
-    });
-    throw new ApiError(400, "INVALID_OTP", "OTP khong hop le");
-  }
-
-  return otp;
 }
 
-export async function requestRegisterOtp(input: RequestRegisterOtpInput) {
-  const existedUser = await prisma.user.findFirst({
-    where: { phone: input.phone },
-    select: { id: true },
+export async function registerPatient(
+  input:RegisterPatientInput,
+  verifier:PhoneTokenVerifier=verifyFirebasePhoneIdToken,
+){
+  const {phone,uid}=await getVerifiedPhone(input.firebaseIdToken,verifier);
+  const existedUser=await prisma.user.findUnique({
+    where:{phone},
+    select:{id:true},
   });
-
-  if (existedUser) {
-    throw new ApiError(409, "PHONE_ALREADY_EXISTS", "So dien thoai da ton tai");
+  if(existedUser){
+    throw new ApiError(409,"PHONE_ALREADY_EXISTS","So dien thoai da ton tai");
   }
-
-  await upsertOtp({
-    phone: input.phone,
-    purpose: "REGISTER",
-    payloadJson: input,
-    content: `Ma OTP dang ky TeleMedicine: {{otp}}, OTP co hieu luc trong vong ${config.otp.expiresMinutes} phut`,
-  });
-}
-
-export async function verifyRegisterOtp(input: VerifyRegisterOtpInput) {
-  const existedUser = await prisma.user.findUnique({
-    where: { phone: input.phone },
-    select: { id: true },
-  });
-
-  if (existedUser) {
-    throw new ApiError(409, "PHONE_ALREADY_EXISTS", "So dien thoai da ton tai");
-  }
-
-  const otp = await verifyOtpOrThrow(input.phone, input.otp, "REGISTER");
-  const payload = registerOtpPayloadSchema.parse(otp.payloadJson);
-
-  return prisma.$transaction(async (tx) => {
-    const createdUser = await tx.user.create({
-      data: {
-        role: UserRole.PATIENT,
-        phone: payload.phone,
-        patientProfile: {
-          create: {
-            fullName: payload.fullName,
-            dateOfBirth: payload.dateOfBirth,
-            gender: payload.gender ?? Gender.UNSPECIFIED,
+  let createdUser;
+  try{
+    createdUser=await prisma.user.create({
+      data:{
+        role:UserRole.PATIENT,
+        phone,
+        firebaseUid:uid,
+        patientProfile:{
+          create:{
+            fullName:input.fullName,
+            dateOfBirth:input.dateOfBirth,
+            gender:input.gender??Gender.UNSPECIFIED,
           },
         },
       },
-      select: {
-        id: true,
-        role: true,
-        status: true,
-        phone: true,
-        createdAt: true,
-        patientProfile: {
-          select: {
-            fullName: true,
-            dateOfBirth: true,
-            gender: true,
-          },
-        },
+      select:{
+        id:true,
+        role:true,
+        status:true,
+        phone:true,
+        email:true,
+        tokenVersion:true,
       },
     });
+  }catch(error){
+    if(isPrismaUniqueError(error)){
+      throw new ApiError(409,"PHONE_ALREADY_EXISTS","So dien thoai da ton tai");
+    }
+    throw error;
+  }
+  return issueSession(createdUser);
+}
 
-    await tx.otpCode.updateMany({
-      where: { phoneNumber: input.phone },
-      data: { consumedAt: new Date() },
+export async function loginPatient(
+  input:LoginPatientInput,
+  verifier:PhoneTokenVerifier=verifyFirebasePhoneIdToken,
+){
+  const {phone,uid}=await getVerifiedPhone(input.firebaseIdToken,verifier);
+  const user=await prisma.user.findFirst({
+    where:{phone,role:UserRole.PATIENT},
+    select:{
+      id:true,
+      role:true,
+      status:true,
+      phone:true,
+      email:true,
+      firebaseUid:true,
+      tokenVersion:true,
+    },
+  });
+  if(!user){
+    throw new ApiError(404,"PATIENT_NOT_FOUND","Khong tim thay tai khoan benh nhan");
+  }
+  if(user.status!=="ACTIVE"){
+    throw new ApiError(403,"USER_DISABLED","Tai khoan da bi khoa");
+  }
+  if(user.firebaseUid&&user.firebaseUid!==uid){
+    throw new ApiError(401,"FIREBASE_ACCOUNT_MISMATCH","Tai khoan Firebase khong khop voi benh nhan");
+  }
+  try{
+    await prisma.user.update({
+      where:{id:user.id},
+      data:{lastLoginAt:new Date(),...(!user.firebaseUid?{firebaseUid:uid}:{})},
     });
-
-    return createdUser;
-  });
-}
-
-export async function requestPatientLoginOtp(input: RequestPatientLoginOtpInput) {
-  const user = await prisma.user.findFirst({
-    where: {
-      phone: input.phone,
-      role: UserRole.PATIENT,
-    },
-    select: {
-      id: true,
-      status: true,
-    },
-  });
-
-  if (!user) {
-    throw new ApiError(404, "PATIENT_NOT_FOUND", "Khong tim thay tai khoan benh nhan");
+  }catch(error){
+    if(isPrismaUniqueError(error)){
+      throw new ApiError(409,"FIREBASE_ACCOUNT_ALREADY_LINKED","Tai khoan Firebase da lien ket voi benh nhan khac");
+    }
+    throw error;
   }
-
-  if (user.status !== "ACTIVE") {
-    throw new ApiError(403, "USER_DISABLED", "Tai khoan da bi khoa");
-  }
-
-  await upsertOtp({
-    phone: input.phone,
-    purpose: "LOGIN",
-    content: `Ma OTP dang nhap TeleMedicine: {{otp}}, OTP co hieu luc trong vong ${config.otp.expiresMinutes} phut`,
-  });
-}
-
-export async function loginPatient(input: LoginPatientInput) {
-  await verifyOtpOrThrow(input.phone, input.otp, "LOGIN");
-
-  const user = await prisma.user.findFirst({
-    where: {
-      phone: input.phone,
-      role: UserRole.PATIENT,
-    },
-    select: {
-      id: true,
-      role: true,
-      status: true,
-      phone: true,
-      email: true,
-      tokenVersion: true,
-    },
-  });
-
-  if (!user) {
-    throw new ApiError(404, "PATIENT_NOT_FOUND", "Khong tim thay tai khoan benh nhan");
-  }
-
-  if (user.status !== "ACTIVE") {
-    throw new ApiError(403, "USER_DISABLED", "Tai khoan da bi khoa");
-  }
-
-  const result = await issueSession(user);
-
-  await prisma.otpCode.updateMany({
-    where: { phoneNumber: input.phone },
-    data: { consumedAt: new Date() },
-  });
-
-  return result;
+  return issueSession(user);
 }
 
 export async function loginStaff(input: LoginStaffInput) {
@@ -409,6 +301,7 @@ export async function getMe(userId: string) {
           address: true,
           medicalHistory: true,
           drugAllergies: true,
+          avatar:true,
         },
       },
       doctorProfile: {

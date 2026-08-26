@@ -30,12 +30,6 @@ enum Gender {
   UNSPECIFIED
 }
 
-enum OtpPurpose {
-  LOGIN
-  REGISTER
-  RESET_PASSWORD
-}
-
 enum AppointmentStatus {
   PENDING_CONFIRMATION
   CONFIRMED
@@ -78,7 +72,7 @@ enum AppointmentNotificationType {
 
 enum NotificationChannel {
   PUSH
-  SMS
+  EMAIL
 }
 
 enum NotificationDeliveryStatus {
@@ -95,6 +89,11 @@ enum PushDevicePlatform {
   IOS
 }
 
+enum DoctorPasswordOtpPurpose {
+  CHANGE_PASSWORD
+  RESET_PASSWORD
+}
+
 model User {
   id     String     @id @default(cuid())
   role   UserRole
@@ -102,6 +101,7 @@ model User {
 
   phone        String? @unique
   email        String? @unique
+  firebaseUid  String? @unique
   passwordHash String?
 
   tokenVersion Int       @default(0)
@@ -120,7 +120,8 @@ model User {
   userNotifications        UserNotification[]
   notificationPreference   NotificationPreference?
   pushDeviceTokens         PushDeviceToken[]
-  doctorReviewsModerated   DoctorReview[]               @relation("DoctorReviewModeratedBy")
+  doctorReviewsModerated   DoctorReview[]             @relation("DoctorReviewModeratedBy")
+  doctorPasswordOtps       DoctorPasswordOtp[]
 
   @@index([role, status])
 }
@@ -188,8 +189,8 @@ model DoctorReview {
   patient     PatientProfile @relation(fields: [patientID], references: [userID], onDelete: Cascade)
   moderatedBy User?          @relation("DoctorReviewModeratedBy", fields: [moderatedByID], references: [id], onDelete: SetNull)
 
-  @@index([doctorID, status, rating, createdAt])
   @@unique([doctorID, patientID])
+  @@index([doctorID, status, rating, createdAt])
   @@index([patientID, createdAt])
   @@index([status, createdAt])
 }
@@ -223,11 +224,11 @@ model Appointment {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  doctor          DoctorProfile               @relation("DoctorAppointments", fields: [doctorID], references: [userID], onDelete: Restrict)
-  patient         PatientProfile              @relation("PatientAppointments", fields: [patientID], references: [userID], onDelete: Restrict)
-  slotReservation AppointmentSlotReservation?
-  statusHistory   AppointmentStatusHistory[]
-  notifications   AppointmentNotification[]
+  doctor            DoctorProfile               @relation("DoctorAppointments", fields: [doctorID], references: [userID], onDelete: Restrict)
+  patient           PatientProfile              @relation("PatientAppointments", fields: [patientID], references: [userID], onDelete: Restrict)
+  slotReservation   AppointmentSlotReservation?
+  statusHistory     AppointmentStatusHistory[]
+  notifications     AppointmentNotification[]
   userNotifications UserNotification[]
 
   @@index([doctorID, startAt, status])
@@ -339,8 +340,8 @@ model UserNotification {
 model NotificationPreference {
   userID String @id
 
-  pushEnabled Boolean @default(true)
-  smsEnabled  Boolean @default(true)
+  pushEnabled  Boolean @default(true)
+  emailEnabled Boolean @default(false)
 
   bookingCreatedEnabled       Boolean @default(true)
   requestCreatedEnabled       Boolean @default(true)
@@ -375,6 +376,25 @@ model PushDeviceToken {
   @@index([userID, enabled])
 }
 
+model DoctorPasswordOtp {
+  id      String                   @id @default(cuid())
+  userID  String
+  purpose DoctorPasswordOtpPurpose
+
+  codeHash   String
+  expiresAt  DateTime
+  attempts   Int       @default(0)
+  consumedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userID], references: [id], onDelete: Cascade)
+
+  @@unique([userID, purpose])
+  @@index([expiresAt])
+}
+
 model Specialty {
   id          String          @id @default(cuid())
   code        String          @unique
@@ -389,22 +409,6 @@ model Specialty {
   doctors DoctorProfile[]
 
   @@index([status, name])
-}
-
-model OtpCode {
-  id          String     @id @default(cuid())
-  phoneNumber String     @unique
-  purpose     OtpPurpose
-
-  codeHash   String
-  expiresAt  DateTime
-  attempts   Int       @default(0)
-  consumedAt DateTime?
-
-  payloadJson Json?
-  createdAt   DateTime @default(now())
-
-  @@index([phoneNumber, purpose, createdAt])
 }
 
 model RefreshToken {

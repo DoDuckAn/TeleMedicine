@@ -18,11 +18,6 @@ const envSchema=z.object({
     JWT_REFRESH_EXPIRES_IN: z.string().default("30d"),
     JWT_REFRESH_EXPIRES_DAYS: z.coerce.number().int().positive().default(30),
     DEFAULT_DOCTOR_PASSWORD: z.string().min(1, "DEFAULT_DOCTOR_PASSWORD is required"),
-    SPEEDSMS_ACCESS_TOKEN: z.string().min(1, "SPEEDSMS_ACCESS_TOKEN is required"),
-    SPEEDSMS_SMS_TYPE:z.coerce.number().int().positive().default(4),
-    SPEEDSMS_SENDER:z.string().default("Verify"),
-    OTP_EXPIRES_MINUTES:z.coerce.number().int().positive().default(2),
-    OTP_MAX_ATTEMPTS:z.coerce.number().int().positive().default(3),
     APPOINTMENT_SLOT_DURATION_MINUTES:z.coerce.number().int().positive().default(30),
     APP_TIMEZONE:z.string().min(1).default("Asia/Ho_Chi_Minh"),
     APPOINTMENT_HOLD_MINUTES: z.coerce.number().int().positive().min(1).default(15),
@@ -41,9 +36,32 @@ const envSchema=z.object({
         .enum(["true", "false"])
         .default("false")
         .transform((value) => value === "true"),
+    FIREBASE_PHONE_AUTH_ENABLED:z
+        .enum(["true","false"])
+        .default("false")
+        .transform((value)=>value==="true"),
     FIREBASE_PROJECT_ID: z.string().optional(),
     FIREBASE_CLIENT_EMAIL: z.string().email().optional(),
     FIREBASE_PRIVATE_KEY: z.string().optional(),
+    EMAIL_ENABLED:z
+        .enum(["true","false"])
+        .default("false")
+        .transform((value)=>value==="true"),
+    SMTP_HOST:z.string().optional(),
+    SMTP_PORT:z.coerce.number().int().positive().default(587),
+    SMTP_SECURE:z
+        .enum(["true","false"])
+        .default("false")
+        .transform((value)=>value==="true"),
+    SMTP_USER:z.string().optional(),
+    SMTP_PASSWORD:z.string().optional(),
+    EMAIL_FROM:z.string().optional(),
+    CLOUDINARY_CLOUD_NAME:z.string().optional(),
+    CLOUDINARY_API_KEY:z.string().optional(),
+    CLOUDINARY_API_SECRET:z.string().optional(),
+    DOCTOR_PASSWORD_OTP_EXPIRES_MINUTES:z.coerce.number().int().positive().default(10),
+    DOCTOR_PASSWORD_OTP_MAX_ATTEMPTS:z.coerce.number().int().positive().default(5),
+    DOCTOR_PASSWORD_OTP_RESEND_SECONDS:z.coerce.number().int().positive().default(60),
     NOTIFICATION_BATCH_SIZE: z.coerce.number().int().positive().max(500).default(50),
     NOTIFICATION_MAX_ATTEMPTS: z.coerce.number().int().positive().default(5),
     NOTIFICATION_RETRY_MINUTES: z.coerce.number().int().positive().default(5),
@@ -66,7 +84,7 @@ const envSchema=z.object({
         }
     }
 
-    if (env.FIREBASE_PUSH_ENABLED) {
+    if (env.FIREBASE_PUSH_ENABLED||env.FIREBASE_PHONE_AUTH_ENABLED) {
         for (const key of [
             "FIREBASE_PROJECT_ID",
             "FIREBASE_CLIENT_EMAIL",
@@ -76,7 +94,19 @@ const envSchema=z.object({
                 ctx.addIssue({
                     code: "custom",
                     path: [key],
-                    message: `${key} is required when FIREBASE_PUSH_ENABLED=true`,
+                    message: `${key} is required when Firebase is enabled`,
+                });
+            }
+        }
+    }
+
+    if(env.EMAIL_ENABLED){
+        for(const key of ["SMTP_HOST","SMTP_USER","SMTP_PASSWORD","EMAIL_FROM"] as const){
+            if(!env[key]){
+                ctx.addIssue({
+                    code:"custom",
+                    path:[key],
+                    message:`${key} is required when EMAIL_ENABLED=true`,
                 });
             }
         }
@@ -108,17 +138,6 @@ export const config={
 
     defaultDoctorPassword:parsedEnv.data.DEFAULT_DOCTOR_PASSWORD,
     
-    speedsms:{
-        accessToken:parsedEnv.data.SPEEDSMS_ACCESS_TOKEN,
-        smsType:parsedEnv.data.SPEEDSMS_SMS_TYPE,
-        sender:parsedEnv.data.SPEEDSMS_SENDER,
-    },
-
-    otp:{
-        expiresMinutes:parsedEnv.data.OTP_EXPIRES_MINUTES,
-        maxAttempts:parsedEnv.data.OTP_MAX_ATTEMPTS,
-    },
-
     schedule:{
         slotDurationMinutes:parsedEnv.data.APPOINTMENT_SLOT_DURATION_MINUTES,
         timezone:parsedEnv.data.APP_TIMEZONE,
@@ -138,9 +157,32 @@ export const config={
 
     firebase: {
         pushEnabled: parsedEnv.data.FIREBASE_PUSH_ENABLED,
+        phoneAuthEnabled:parsedEnv.data.FIREBASE_PHONE_AUTH_ENABLED,
         projectId: parsedEnv.data.FIREBASE_PROJECT_ID,
         clientEmail: parsedEnv.data.FIREBASE_CLIENT_EMAIL,
         privateKey: parsedEnv.data.FIREBASE_PRIVATE_KEY,
+    },
+
+    email:{
+        enabled:parsedEnv.data.EMAIL_ENABLED,
+        host:parsedEnv.data.SMTP_HOST,
+        port:parsedEnv.data.SMTP_PORT,
+        secure:parsedEnv.data.SMTP_SECURE,
+        user:parsedEnv.data.SMTP_USER,
+        password:parsedEnv.data.SMTP_PASSWORD,
+        from:parsedEnv.data.EMAIL_FROM,
+    },
+
+    cloudinary:{
+        cloudName:parsedEnv.data.CLOUDINARY_CLOUD_NAME,
+        apiKey:parsedEnv.data.CLOUDINARY_API_KEY,
+        apiSecret:parsedEnv.data.CLOUDINARY_API_SECRET,
+    },
+
+    doctorPasswordOtp:{
+        expiresMinutes:parsedEnv.data.DOCTOR_PASSWORD_OTP_EXPIRES_MINUTES,
+        maxAttempts:parsedEnv.data.DOCTOR_PASSWORD_OTP_MAX_ATTEMPTS,
+        resendSeconds:parsedEnv.data.DOCTOR_PASSWORD_OTP_RESEND_SECONDS,
     },
 
     notification: {

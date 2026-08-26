@@ -10,6 +10,7 @@ import { appointmentRouter } from "./modules/appointments/appointment.routes.js"
 import { notificationRouter } from "./modules/notifications/notification.routes.js";
 import { doctorScheduleRouter } from "./modules/schedule-overrides/schedule-override.routes.js";
 import { doctorReviewRouter } from "./modules/doctor-reviews/doctor-review.routes.js";
+import {patientProfileRouter} from "./modules/profiles/patient-profile.routes.js";
 
 export const app = express();
 
@@ -21,6 +22,7 @@ app.use(morgan("dev"));
 app.use("/api/v1/auth",authRouter);
 app.use("/api/v1/specialties", specialtyRouter);
 app.use("/api/v1/doctors", doctorRouter);
+app.use("/api/v1/patients",patientProfileRouter);
 app.use("/api/v1/appointments", appointmentRouter);
 app.use("/api/v1/notifications", notificationRouter);
 app.use("/api/v1/doctor-schedule", doctorScheduleRouter);

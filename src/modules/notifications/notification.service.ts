@@ -13,7 +13,7 @@ import type {
 
 const defaultPreference={
     pushEnabled:true,
-    smsEnabled:true,
+    emailEnabled:false,
     bookingCreatedEnabled:true,
     requestCreatedEnabled:true,
     requestConfirmedEnabled:true,
@@ -30,7 +30,7 @@ function preferenceResponse(preference:typeof defaultPreference){
     return {
         channels:{
             push:preference.pushEnabled,
-            sms:preference.smsEnabled,
+            email:preference.emailEnabled,
         },
         events:{
             bookingCreated:preference.bookingCreatedEnabled,
@@ -97,7 +97,7 @@ export async function updateNotificationPreference(
 ){
     const data={
         ...(input.channels?.push!==undefined?{pushEnabled:input.channels.push}:{}),
-        ...(input.channels?.sms!==undefined?{smsEnabled:input.channels.sms}:{}),
+        ...(input.channels?.email!==undefined?{emailEnabled:input.channels.email}:{}),
         ...(input.events?.bookingCreated!==undefined?{bookingCreatedEnabled:input.events.bookingCreated}:{}),
         ...(input.events?.requestCreated!==undefined?{requestCreatedEnabled:input.events.requestCreated}:{}),
         ...(input.events?.requestConfirmed!==undefined?{requestConfirmedEnabled:input.events.requestConfirmed}:{}),
@@ -109,6 +109,12 @@ export async function updateNotificationPreference(
         ...(input.events?.reminder15Minutes!==undefined?{reminder15MinutesEnabled:input.events.reminder15Minutes}:{}),
         ...(input.events?.doctorNoShow!==undefined?{doctorNoShowEnabled:input.events.doctorNoShow}:{}),
     };
+    if(input.channels?.email===true){
+        const user=await prisma.user.findUnique({where:{id:userId},select:{email:true}});
+        if(!user?.email){
+            throw new ApiError(400,"EMAIL_REQUIRED","Can cap nhat email truoc khi bat thong bao qua email");
+        }
+    }
     const preference=await prisma.notificationPreference.upsert({
         where:{userID:userId},
         create:{userID:userId,...data},

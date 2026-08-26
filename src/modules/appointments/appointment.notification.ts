@@ -7,6 +7,7 @@ import {
 import type { Prisma } from "../../../generated/prisma/client.js";
 import { config } from "../../config/env.js";
 import { sendFirebasePush } from "../../lib/firebase.js";
+import {sendEmail,type EmailMessage} from "../../lib/email.js";
 import { prisma } from "../../lib/prisma.js";
 
 const notificationSelect = {
@@ -25,7 +26,7 @@ const notificationSelect = {
     },
     recipient: {
         select: {
-            phone: true,
+            email:true,
             notificationPreference: true,
         },
     },
@@ -148,10 +149,10 @@ export function isAppointmentNotificationEnabled(
     channel:NotificationChannel,
 ){
     if(!isAppointmentEventEnabled(preference,type))return false;
-    if(!preference)return true;
+    if(!preference)return channel===NotificationChannel.PUSH;
     return channel===NotificationChannel.PUSH
         ?preference.pushEnabled
-        :preference.smsEnabled;
+        :preference.emailEnabled;
 }
 
 export type CreateAppointmentEventInput={
@@ -180,7 +181,7 @@ export async function createAppointmentEvents(
 
     await tx.appointmentNotification.createMany({
         data:events.flatMap((event)=>(
-            event.channels??[NotificationChannel.PUSH,NotificationChannel.SMS]
+            event.channels??[NotificationChannel.PUSH,NotificationChannel.EMAIL]
         ).map((channel)=>({
             appointmentID:event.appointmentID,
             recipientID:event.recipientID,
@@ -228,36 +229,43 @@ async function deliverPush(notification: DeliveryNotification) {
     }
 }
 
-async function deliverSms(notification: DeliveryNotification) {
-    if (!notification.recipient.phone) {
-        throw new Error("Recipient has no phone number");
+async function deliverEmail(
+    notification:DeliveryNotification,
+    emailSender:(message:EmailMessage)=>Promise<void>,
+) {
+    if (!notification.recipient.email) {
+        throw new Error("Recipient has no email address");
     }
 
     const message = buildAppointmentNotificationMessage(notification);
-    console.info("[SMS_LOG]", {
-        notificationId: notification.id,
-        to: notification.recipient.phone,
-        content: message.body,
+    await emailSender({
+        to:notification.recipient.email,
+        subject:message.title,
+        text:message.body,
     });
 }
 
-async function deliverNotification(notification: DeliveryNotification) {
+async function deliverNotification(
+    notification:DeliveryNotification,
+    emailSender:(message:EmailMessage)=>Promise<void>,
+) {
     if (notification.channel === NotificationChannel.PUSH) {
         await deliverPush(notification);
         return;
     }
 
-    await deliverSms(notification);
+    await deliverEmail(notification,emailSender);
 }
 
-function findDueNotifications(now: Date) {
-    const channels: NotificationChannel[] = [NotificationChannel.SMS];
+function findDueNotifications(now:Date,notificationIds?:string[]) {
+    const channels: NotificationChannel[] = [NotificationChannel.EMAIL];
     if (config.firebase.pushEnabled) {
         channels.push(NotificationChannel.PUSH);
     }
 
     return prisma.appointmentNotification.findMany({
         where: {
+            ...(notificationIds?{id:{in:notificationIds}}:{}),
             status: NotificationDeliveryStatus.PENDING,
             channel: { in: channels },
             scheduledAt: { lte: now },
@@ -310,10 +318,17 @@ async function cancelExpiredNotifications(now: Date) {
     });
 }
 
-export async function sendDueAppointmentNotifications(now = new Date()) {
+export async function sendDueAppointmentNotifications(
+    now=new Date(),
+    options?:{
+        emailSender?:(message:EmailMessage)=>Promise<void>;
+        notificationIds?:string[];
+    },
+) {
     await recoverStaleNotifications(now);
     await cancelExpiredNotifications(now);
-    const notifications = await findDueNotifications(now);
+    const notifications=await findDueNotifications(now,options?.notificationIds);
+    const emailSender=options?.emailSender??sendEmail;
     let sentCount = 0;
     let failedCount = 0;
 
@@ -353,7 +368,7 @@ export async function sendDueAppointmentNotifications(now = new Date()) {
         }
 
         try {
-            await deliverNotification(notification);
+            await deliverNotification(notification,emailSender);
             await prisma.appointmentNotification.updateMany({
                 where: {
                     id: notification.id,
