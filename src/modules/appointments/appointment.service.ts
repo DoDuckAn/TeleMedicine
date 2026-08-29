@@ -119,16 +119,14 @@ async function listDoctorAppointments(
         doctorID: doctorId,
         ...where,
     };
-    const [items, total] = await prisma.$transaction([
-        prisma.appointment.findMany({
+    const items=await prisma.appointment.findMany({
             where: scopedWhere,
             select: doctorAppointmentListSelect,
             orderBy,
             skip,
             take: query.limit,
-        }),
-        prisma.appointment.count({ where: scopedWhere }),
-    ]);
+    });
+    const total=await prisma.appointment.count({where:scopedWhere});
 
     return {
         items,
@@ -193,16 +191,14 @@ export async function getPatientUpcomingAppointments(
         ],
     };
     const skip = (query.page - 1) * query.limit;
-    const [items, total] = await prisma.$transaction([
-        prisma.appointment.findMany({
+    const items=await prisma.appointment.findMany({
             where,
             select: appointmentHistorySelect,
             orderBy: [{ startAt: "asc" }, { id: "asc" }],
             skip,
             take: query.limit,
-        }),
-        prisma.appointment.count({ where }),
-    ]);
+    });
+    const total=await prisma.appointment.count({where});
 
     return {
         items: items.map((item) => applyPatientMeetingUrlPolicy(item, now)),
@@ -238,8 +234,7 @@ async function listAppointmentHistory(
     applyPatientMeetingPolicy = false,
 ) {
     const skip = (query.page - 1) * query.limit;
-    const [items, total] = await prisma.$transaction([
-        prisma.appointment.findMany({
+    const items=await prisma.appointment.findMany({
             where,
             select: appointmentHistorySelect,
             orderBy: [
@@ -248,9 +243,8 @@ async function listAppointmentHistory(
             ],
             skip,
             take: query.limit,
-        }),
-        prisma.appointment.count({ where }),
-    ]);
+    });
+    const total=await prisma.appointment.count({where});
 
     const responseItems = applyPatientMeetingPolicy
         ? items.map((item) => applyPatientMeetingUrlPolicy(item))

@@ -122,6 +122,8 @@ model User {
   pushDeviceTokens         PushDeviceToken[]
   doctorReviewsModerated   DoctorReview[]             @relation("DoctorReviewModeratedBy")
   doctorPasswordOtps       DoctorPasswordOtp[]
+  statusHistory            UserStatusHistory[]        @relation("UserStatusHistoryTarget")
+  statusChangesMade        UserStatusHistory[]        @relation("UserStatusHistoryChangedBy")
 
   @@index([role, status])
 }
@@ -427,4 +429,20 @@ model RefreshToken {
   user User @relation(fields: [userId], references: [id])
 
   @@index([userId, revokedAt])
+}
+
+model UserStatusHistory {
+  id          String     @id @default(cuid())
+  userID      String
+  changedByID String
+  fromStatus  UserStatus
+  toStatus    UserStatus
+  reason      String
+  createdAt   DateTime   @default(now())
+
+  user      User @relation("UserStatusHistoryTarget", fields: [userID], references: [id], onDelete: Cascade)
+  changedBy User @relation("UserStatusHistoryChangedBy", fields: [changedByID], references: [id], onDelete: Restrict)
+
+  @@index([userID, createdAt])
+  @@index([changedByID, createdAt])
 }

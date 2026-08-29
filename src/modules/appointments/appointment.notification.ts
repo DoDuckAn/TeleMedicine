@@ -3,6 +3,7 @@ import {
     AppointmentNotificationType,
     NotificationChannel,
     NotificationDeliveryStatus,
+    UserStatus,
 } from "../../../generated/prisma/enums.js";
 import type { Prisma } from "../../../generated/prisma/client.js";
 import { config } from "../../config/env.js";
@@ -26,6 +27,7 @@ const notificationSelect = {
     },
     recipient: {
         select: {
+            status:true,
             email:true,
             notificationPreference: true,
         },
@@ -333,6 +335,19 @@ export async function sendDueAppointmentNotifications(
     let failedCount = 0;
 
     for (const notification of notifications) {
+        if(notification.recipient.status!==UserStatus.ACTIVE){
+            await prisma.appointmentNotification.updateMany({
+                where:{
+                    id:notification.id,
+                    status:NotificationDeliveryStatus.PENDING,
+                },
+                data:{
+                    status:NotificationDeliveryStatus.CANCELLED,
+                    failureReason:"Recipient account disabled",
+                },
+            });
+            continue;
+        }
         if(!isAppointmentNotificationEnabled(
             notification.recipient.notificationPreference,
             notification.type,

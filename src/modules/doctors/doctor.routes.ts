@@ -16,6 +16,8 @@ import {avatarUpload} from "../../middleware/avatar.middleware.js";
 import * as ProfileController from "../profiles/profile.controller.js";
 import * as ProfileSchema from "../profiles/profile.schema.js";
 import * as AuthSchema from "../auth/auth.schema.js";
+import * as AdminSchema from "../admin/admin.schema.js";
+import * as StatisticsController from "../admin/statistics.controller.js";
 
 export const doctorRouter = Router();
 
@@ -47,6 +49,14 @@ doctorRouter.post(
   requireAuth,
   requireRole("DOCTOR"),
   asyncHandler(ProfileController.requestDoctorPasswordChangeOtp),
+);
+
+doctorRouter.get(
+  "/me/statistics",
+  requireAuth,
+  requireRole("DOCTOR"),
+  validateQuery(AdminSchema.statisticsQuerySchema),
+  asyncHandler(StatisticsController.ownDoctorStatistics),
 );
 
 doctorRouter.post(

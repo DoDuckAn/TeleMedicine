@@ -11,6 +11,7 @@ import { notificationRouter } from "./modules/notifications/notification.routes.
 import { doctorScheduleRouter } from "./modules/schedule-overrides/schedule-override.routes.js";
 import { doctorReviewRouter } from "./modules/doctor-reviews/doctor-review.routes.js";
 import {patientProfileRouter} from "./modules/profiles/patient-profile.routes.js";
+import {adminRouter} from "./modules/admin/admin.routes.js";
 
 export const app = express();
 
@@ -20,6 +21,7 @@ app.use(express.json());
 app.use(morgan("dev"));
 
 app.use("/api/v1/auth",authRouter);
+app.use("/api/v1/admin",adminRouter);
 app.use("/api/v1/specialties", specialtyRouter);
 app.use("/api/v1/doctors", doctorRouter);
 app.use("/api/v1/patients",patientProfileRouter);

@@ -25,11 +25,6 @@ export async function resetDoctorPassword(req:Request,res:Response){
   return ok(res,await DoctorPasswordService.resetDoctorPassword(req.body));
 }
 
-export async function createDoctor(req: Request, res: Response) {
-  const doctor = await AuthService.createDoctor(req.body);
-  return ok(res, doctor, 201);
-}
-
 export async function me(req: Request, res: Response) {
   const user = await AuthService.getMe(req.user!.id);
   return ok(res, user);

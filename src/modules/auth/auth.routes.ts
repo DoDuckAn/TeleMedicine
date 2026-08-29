@@ -3,7 +3,7 @@ import { validateBody } from "../../middleware/validate.middleware.js";
 import * as AuthSchema from "./auth.schema.js";
 import { asyncHandler } from "../../common/async-handler.js";
 import * as AuthController from "./auth.controller.js";
-import { requireAuth, requireRole } from "../../middleware/auth.middleware.js";
+import { requireAuth } from "../../middleware/auth.middleware.js";
 
 export const authRouter = Router();
 
@@ -35,14 +35,6 @@ authRouter.post(
   "/doctors/password/forgot/reset",
   validateBody(AuthSchema.resetDoctorPasswordSchema),
   asyncHandler(AuthController.resetDoctorPassword),
-);
-
-authRouter.post(
-  "/doctors",
-  requireAuth,
-  requireRole("ADMIN"),
-  validateBody(AuthSchema.createDoctorSchema),
-  asyncHandler(AuthController.createDoctor),
 );
 
 authRouter.get("/me", requireAuth, asyncHandler(AuthController.me));
