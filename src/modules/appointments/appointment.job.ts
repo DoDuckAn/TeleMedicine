@@ -1,16 +1,95 @@
 import cron from "node-cron";
 import {
     AppointmentActor,
+    AppointmentNotificationType,
     AppointmentStatus,
     NotificationDeliveryStatus,
 } from "../../../generated/prisma/enums.js";
 import { config } from "../../config/env.js";
 import { prisma } from "../../lib/prisma.js";
 import { cleanupAppointmentMeeting } from "./appointment.service.js";
-import { sendDueAppointmentNotifications } from "./appointment.notification.js";
+import {
+    createAppointmentEvents,
+    sendDueAppointmentNotifications,
+} from "./appointment.notification.js";
 
 const JOB_BATCH_SIZE = 20;
 let maintenanceRunning = false;
+
+async function expirePendingAppointments(now:Date){
+    const pendingAppointments=await prisma.appointment.findMany({
+        where:{
+            status:AppointmentStatus.PENDING_CONFIRMATION,
+            confirmationDueAt:{lte:now},
+        },
+        select:{id:true,patientID:true},
+        orderBy:{confirmationDueAt:"asc"},
+        take:JOB_BATCH_SIZE,
+    });
+
+    let expiredCount=0;
+    for(const appointment of pendingAppointments){
+        try{
+            const expired=await prisma.$transaction(async(tx)=>{
+                const updated=await tx.appointment.updateMany({
+                    where:{
+                        id:appointment.id,
+                        status:AppointmentStatus.PENDING_CONFIRMATION,
+                        confirmationDueAt:{lte:now},
+                    },
+                    data:{status:AppointmentStatus.EXPIRED},
+                });
+                if(updated.count!==1)return false;
+
+                await tx.appointmentSlotReservation.deleteMany({
+                    where:{appointmentID:appointment.id},
+                });
+                await tx.appointmentStatusHistory.create({
+                    data:{
+                        appointmentID:appointment.id,
+                        fromStatus:AppointmentStatus.PENDING_CONFIRMATION,
+                        toStatus:AppointmentStatus.EXPIRED,
+                        actor:AppointmentActor.SYSTEM,
+                        note:"Qua thoi gian cho bac si xac nhan",
+                    },
+                });
+                await tx.appointmentNotification.updateMany({
+                    where:{
+                        appointmentID:appointment.id,
+                        type:AppointmentNotificationType.REQUEST_CREATED,
+                        status:{
+                            in:[
+                                NotificationDeliveryStatus.PENDING,
+                                NotificationDeliveryStatus.PROCESSING,
+                            ],
+                        },
+                    },
+                    data:{
+                        status:NotificationDeliveryStatus.CANCELLED,
+                        processingStartedAt:null,
+                        nextAttemptAt:null,
+                    },
+                });
+                await createAppointmentEvents(tx,[{
+                    appointmentID:appointment.id,
+                    recipientID:appointment.patientID,
+                    type:AppointmentNotificationType.REQUEST_EXPIRED,
+                    scheduledAt:now,
+                }]);
+                return true;
+            });
+
+            if(expired)expiredCount+=1;
+        }catch(error){
+            console.error("Could not expire pending appointment",{
+                appointmentId:appointment.id,
+                error:error instanceof Error?error.message:"Unknown error",
+            });
+        }
+    }
+
+    return expiredCount;
+}
 
 async function markOverdueAppointmentsNoShow(now: Date) {
     const cutoff = new Date(
@@ -126,6 +205,7 @@ export async function runAppointmentMaintenance(now = new Date()) {
     if (maintenanceRunning) {
         return {
             skipped: true,
+            expiredCount: 0,
             noShowCount: 0,
             cleanedCount: 0,
             notificationSentCount: 0,
@@ -135,11 +215,13 @@ export async function runAppointmentMaintenance(now = new Date()) {
 
     maintenanceRunning = true;
     try {
+        const expiredCount=await expirePendingAppointments(now);
         const noShowCount = await markOverdueAppointmentsNoShow(now);
         const cleanedCount = await cleanupPendingMeetingSpaces();
         const notificationResult = await sendDueAppointmentNotifications(now);
         return {
             skipped: false,
+            expiredCount,
             noShowCount,
             cleanedCount,
             notificationSentCount: notificationResult.sentCount,
