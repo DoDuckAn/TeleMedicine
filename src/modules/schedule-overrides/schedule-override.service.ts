@@ -45,11 +45,11 @@ const CALENDAR_APPOINTMENT_STATUSES=[
   AppointmentStatus.NO_SHOW,
 ] as const;
 
-async function findDoctorSchedule(doctorId: string) {
+async function findDoctorSchedule(doctorId: string, includeDisabled=false) {
   const doctor=await prisma.doctorProfile.findFirst({
     where: {
       userID: doctorId,
-      user: { status: UserStatus.ACTIVE },
+      ...(includeDisabled?{}:{user: { status: UserStatus.ACTIVE }}),
     },
     select: {
       userID: true,
@@ -101,8 +101,9 @@ export async function updateWeeklySchedule(
 export async function listOverrides(
   doctorId: string,
   query: ListScheduleOverridesQuery,
+  includeDisabled=false,
 ) {
-  await findDoctorSchedule(doctorId);
+  await findDoctorSchedule(doctorId,includeDisabled);
   const now=new Date();
   const from=query.from??now;
   const to=query.to??new Date(from.getTime()+28*24*60*60*1000);

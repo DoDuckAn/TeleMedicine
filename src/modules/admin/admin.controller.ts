@@ -9,6 +9,13 @@ import {
     adminUserIdParamSchema,
 } from "./admin.schema.js";
 import * as AdminService from "./admin.service.js";
+import {listOverrides} from "../schedule-overrides/schedule-override.service.js";
+import {listScheduleOverridesQuerySchema} from "../schedule-overrides/schedule-override.schema.js";
+
+export async function listDoctorOverrides(req:Request,res:Response){
+    const {doctorId}=adminDoctorIdParamSchema.parse(req.params);
+    return ok(res,await listOverrides(doctorId,listScheduleOverridesQuerySchema.parse(req.query),true));
+}
 
 export async function createDoctor(req:Request,res:Response){
     return ok(res,await AuthService.createDoctor(req.body),201);

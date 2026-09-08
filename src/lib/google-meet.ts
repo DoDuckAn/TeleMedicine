@@ -113,6 +113,7 @@ export async function createGoogleMeetSpace(): Promise<GoogleMeetSpace> {
 
         console.error("Google Meet space creation failed", {
             status: getGoogleStatus(error),
+            reason: getGoogleErrorMessage(error),
         });
         throw new ApiError(
             502,

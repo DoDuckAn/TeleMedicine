@@ -482,6 +482,7 @@ export async function getAppointmentDetail(
                     medicalHistory: true,
                     drugAllergies: true,
                     avatar: true,
+                    user: {select: {email: true,phone: true}},
                 },
             },
             statusHistory: {
@@ -519,9 +520,14 @@ export async function getAppointmentDetail(
         );
     }
 
+    const {user:patientUser,...patientProfile}=appointment.patient;
+    const detail={
+        ...appointment,
+        patient:{...patientProfile,email:patientUser.email,phone:patientUser.phone},
+    };
     return currentUser.role === "PATIENT"
-        ? applyPatientMeetingUrlPolicy(appointment)
-        : appointment;
+        ? applyPatientMeetingUrlPolicy(detail)
+        : detail;
 }
 
 export async function confirmAppointment(

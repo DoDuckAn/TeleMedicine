@@ -79,8 +79,37 @@ export function listSpecialties() {
 
 export function listAllSpecialties() {
   return prisma.specialty.findMany({
-    select: specialtySelect,
+    select: {
+      id:true,code:true,name:true,description:true,status:true,deletedAt:true,
+      _count:{select:{doctors:true}},
+    },
     orderBy: [{ status: "asc" }, { name: "asc" }],
+  });
+}
+
+export async function updateSpecialtyDoctors(specialtyId:string,input:{
+  addDoctorIds:string[];removeDoctorIds:string[];
+}){
+  const addDoctorIds=[...new Set(input.addDoctorIds)];
+  const removeDoctorIds=[...new Set(input.removeDoctorIds)];
+  return prisma.$transaction(async tx=>{
+    const specialty=await tx.specialty.findUnique({where:{id:specialtyId},select:{status:true,deletedAt:true}});
+    if(!specialty)throw new ApiError(404,"SPECIALTY_NOT_FOUND","Khong tim thay chuyen khoa");
+    if(addDoctorIds.length&&specialty.status!=="ACTIVE"){
+      throw new ApiError(409,"SPECIALTY_DISABLED","Khong the gan bac si vao chuyen khoa da an");
+    }
+    const doctors=await tx.doctorProfile.count({
+      where:{userID:{in:addDoctorIds},user:{role:"DOCTOR",status:"ACTIVE"}},
+    });
+    if(doctors!==addDoctorIds.length)throw new ApiError(400,"DOCTOR_NOT_AVAILABLE","Bac si khong ton tai hoac da bi khoa");
+    return tx.specialty.update({
+      where:{id:specialtyId},
+      data:{doctors:{
+        connect:addDoctorIds.map(userID=>({userID})),
+        disconnect:removeDoctorIds.map(userID=>({userID})),
+      }},
+      select:{id:true,_count:{select:{doctors:true}}},
+    });
   });
 }
 

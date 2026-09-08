@@ -10,10 +10,18 @@ import {createDoctorSchema} from "../auth/auth.schema.js";
 import * as AdminController from "./admin.controller.js";
 import * as AdminSchema from "./admin.schema.js";
 import * as StatisticsController from "./statistics.controller.js";
+import {listScheduleOverridesQuerySchema} from "../schedule-overrides/schedule-override.schema.js";
 
 export const adminRouter=Router();
 
 adminRouter.use(requireAuth,requireRole("ADMIN"));
+
+adminRouter.get(
+    "/doctors/:doctorId/overrides",
+    validateParams(AdminSchema.adminDoctorIdParamSchema),
+    validateQuery(listScheduleOverridesQuerySchema),
+    asyncHandler(AdminController.listDoctorOverrides),
+);
 
 adminRouter.get(
     "/dashboard",

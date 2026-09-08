@@ -37,3 +37,9 @@ export const doctorSpecialtyParamSchema = specialtyIdParamSchema.extend({
 
 export type CreateSpecialtyInput = z.infer<typeof createSpecialtySchema>;
 export type UpdateSpecialtyInput = z.infer<typeof updateSpecialtySchema>;
+export const updateSpecialtyDoctorsSchema=z.object({
+  addDoctorIds:z.array(z.string().trim().min(1)).max(500).default([]),
+  removeDoctorIds:z.array(z.string().trim().min(1)).max(500).default([]),
+}).refine(input=>!input.addDoctorIds.some(id=>input.removeDoctorIds.includes(id)),{
+  message:"Khong the them va go cung mot bac si",
+});

@@ -33,6 +33,13 @@ specialtyRouter.get(
 
 specialtyRouter.use(requireAuth, requireRole("ADMIN"));
 
+specialtyRouter.patch(
+  "/:specialtyId/doctors",
+  validateParams(SpecialtySchema.specialtyIdParamSchema),
+  validateBody(SpecialtySchema.updateSpecialtyDoctorsSchema),
+  asyncHandler(SpecialtyController.updateDoctors),
+);
+
 specialtyRouter.post(
   "/",
   validateBody(SpecialtySchema.createSpecialtySchema),

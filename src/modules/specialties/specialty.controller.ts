@@ -1,6 +1,11 @@
 import type { Request, Response } from "express";
 import { ok } from "../../common/response.js";
 import * as SpecialtyService from "./specialty.service.js";
+
+export async function updateDoctors(req:Request,res:Response){
+  const {specialtyId}=specialtyIdParamSchema.parse(req.params);
+  return ok(res,await SpecialtyService.updateSpecialtyDoctors(specialtyId,req.body));
+}
 import {
   doctorSpecialtyParamSchema,
   specialtyIdParamSchema,
