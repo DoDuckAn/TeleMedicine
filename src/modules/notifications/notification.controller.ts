@@ -1,5 +1,6 @@
 import type { Request, Response } from "express";
 import { ok } from "../../common/response.js";
+import {publishNotificationsChanged} from "../../lib/realtime.js";
 import type {
     ListNotificationsQuery,
     RegisterPushDeviceInput,
@@ -38,11 +39,15 @@ export async function unreadCount(req:Request,res:Response){
 
 export async function markRead(req:Request,res:Response){
     const {notificationId}=notificationIdParamSchema.parse(req.params);
-    return ok(res,await NotificationService.markNotificationRead(req.user!.id,notificationId));
+    const result=await NotificationService.markNotificationRead(req.user!.id,notificationId);
+    await publishNotificationsChanged([req.user!.id]);
+    return ok(res,result);
 }
 
 export async function markAllRead(req:Request,res:Response){
-    return ok(res,await NotificationService.markAllNotificationsRead(req.user!.id));
+    const result=await NotificationService.markAllNotificationsRead(req.user!.id);
+    await publishNotificationsChanged([req.user!.id]);
+    return ok(res,result);
 }
 
 export async function getPreference(req:Request,res:Response){
@@ -51,5 +56,7 @@ export async function getPreference(req:Request,res:Response){
 
 export async function updatePreference(req:Request,res:Response){
     const input=req.body as UpdateNotificationPreferenceInput;
-    return ok(res,await NotificationService.updateNotificationPreference(req.user!.id,input));
+    const result=await NotificationService.updateNotificationPreference(req.user!.id,input);
+    await publishNotificationsChanged([req.user!.id]);
+    return ok(res,result);
 }

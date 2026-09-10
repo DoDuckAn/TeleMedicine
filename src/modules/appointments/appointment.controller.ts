@@ -1,5 +1,6 @@
 import type { Request, Response } from "express";
 import { ok } from "../../common/response.js";
+import {publishAppointmentChanged} from "../../lib/realtime.js";
 import {
   adminAppointmentListQuerySchema,
   appointmentIdParamSchema,
@@ -25,6 +26,7 @@ export async function bookAppointment(req: Request, res: Response) {
     patientId: req.user!.id,
   });
 
+  await publishAppointmentChanged(appointment.id);
   return ok(res, appointment, 201);
 }
 
@@ -100,42 +102,38 @@ export async function getAppointmentDetail(req: Request, res: Response) {
 
 export async function confirmAppointment(req: Request, res: Response) {
   const { appointmentId } = appointmentIdParamSchema.parse(req.params);
-  return ok(
-    res,
-    await AppointmentService.confirmAppointment(req.user!.id, appointmentId),
-  );
+  const result=await AppointmentService.confirmAppointment(req.user!.id, appointmentId);
+  await publishAppointmentChanged(appointmentId);
+  return ok(res,result);
 }
 
 export async function completeAppointment(req: Request, res: Response) {
   const { appointmentId } = appointmentIdParamSchema.parse(req.params);
-  return ok(
-    res,
-    await AppointmentService.completeAppointment(req.user!.id, appointmentId),
-  );
+  const result=await AppointmentService.completeAppointment(req.user!.id, appointmentId);
+  await publishAppointmentChanged(appointmentId);
+  return ok(res,result);
 }
 
 export async function rejectAppointment(req: Request, res: Response) {
   const { appointmentId } = appointmentIdParamSchema.parse(req.params);
   const body = req.body as RejectAppointmentInput;
-  return ok(
-    res,
-    await AppointmentService.rejectAppointment(
+  const result=await AppointmentService.rejectAppointment(
       req.user!.id,
       appointmentId,
       body.reason,
-    ),
-  );
+    );
+  await publishAppointmentChanged(appointmentId);
+  return ok(res,result);
 }
 
 export async function cancelAppointment(req: Request, res: Response) {
   const { appointmentId } = appointmentIdParamSchema.parse(req.params);
   const body = req.body as CancelAppointmentInput;
-  return ok(
-    res,
-    await AppointmentService.cancelAppointment(
+  const result=await AppointmentService.cancelAppointment(
       req.user!,
       appointmentId,
       body.reason,
-    ),
-  );
+    );
+  await publishAppointmentChanged(appointmentId);
+  return ok(res,result);
 }

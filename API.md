@@ -1,5 +1,9 @@
 # TeleMedicine Backend API Context
 
+Realtime lich hen/thong bao: Socket.IO dung chung cong API, path `/socket.io`,
+xac thuc bang `auth: { token: accessToken }`. Contract event, reconnect, cau hinh
+va gioi han: [docs/realtime-setup.md](docs/realtime-setup.md).
+
 Tai lieu ban giao contract backend hien tai de lam frontend hoac tiep tuc phat
 trien trong session moi. Noi dung lay tu route, Zod schema va service trong `src/`.
 

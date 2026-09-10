@@ -1,6 +1,7 @@
 import type {Request,Response} from "express";
 import {UserRole} from "../../../generated/prisma/enums.js";
 import {ok} from "../../common/response.js";
+import {publishScheduleChanged} from "../../lib/realtime.js";
 import * as AuthService from "../auth/auth.service.js";
 import {
     adminDoctorIdParamSchema,
@@ -33,7 +34,9 @@ export async function getDoctorDetail(req:Request,res:Response){
 
 export async function updateDoctor(req:Request,res:Response){
     const {doctorId}=adminDoctorIdParamSchema.parse(req.params);
-    return ok(res,await AdminService.updateDoctor(doctorId,req.body));
+    const result=await AdminService.updateDoctor(doctorId,req.body);
+    await publishScheduleChanged(doctorId);
+    return ok(res,result);
 }
 
 export async function updateDoctorStatus(req:Request,res:Response){

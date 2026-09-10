@@ -1,4 +1,5 @@
 import cron from "node-cron";
+import {publishAppointmentChanged,publishDueNotificationUpdates} from "../../lib/realtime.js";
 import {
     AppointmentActor,
     AppointmentNotificationType,
@@ -79,7 +80,10 @@ async function expirePendingAppointments(now:Date){
                 return true;
             });
 
-            if(expired)expiredCount+=1;
+            if(expired){
+                expiredCount+=1;
+                await publishAppointmentChanged(appointment.id);
+            }
         }catch(error){
             console.error("Could not expire pending appointment",{
                 appointmentId:appointment.id,
@@ -161,6 +165,7 @@ async function markOverdueAppointmentsNoShow(now: Date) {
 
             if (updated) {
                 updatedCount += 1;
+                await publishAppointmentChanged(appointment.id);
             }
         } catch (error) {
             console.error("Could not mark appointment as doctor no-show", {
@@ -218,6 +223,7 @@ export async function runAppointmentMaintenance(now = new Date()) {
         const expiredCount=await expirePendingAppointments(now);
         const noShowCount = await markOverdueAppointmentsNoShow(now);
         const cleanedCount = await cleanupPendingMeetingSpaces();
+        await publishDueNotificationUpdates(now);
         const notificationResult = await sendDueAppointmentNotifications(now);
         return {
             skipped: false,

@@ -1,5 +1,6 @@
 ﻿import express from "express";
 import cors from "cors";
+import {allowedOrigins} from "./config/cors.js";
 import helmet from "helmet";
 import morgan from "morgan";
 import { errorMiddleware } from "./middleware/error.middleware.js";
@@ -17,13 +18,7 @@ export const app = express();
 
 app.use(helmet());
 app.use(cors({
-  origin: [
-    "http://localhost:3000",
-    "http://localhost:3001",
-    "http://127.0.0.1:3000",
-    "http://127.0.0.1:3001",
-    "http://192.168.1.7:3000",
-  ],
+  origin: allowedOrigins,
   credentials: true,
 }));
 app.use(express.json());

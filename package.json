@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
+    "test:realtime": "tsx --test --test-concurrency=1 tests/realtime.test.ts",
     "test": "npm run test:profile && npm run test:admin",
     "test:profile": "tsx --test --test-concurrency=1 tests/profile-email-auth.test.ts",
     "test:admin": "tsx --test --test-concurrency=1 tests/admin-management.test.ts",
@@ -55,6 +56,7 @@
     "@types/nodemailer": "^8.0.1",
     "@types/supertest": "^7.2.1",
     "prisma": "^7.9.1",
+    "socket.io-client": "^4.8.3",
     "supertest": "^7.2.2",
     "tsx": "^4.23.12",
     "typescript": "^7.0.2"
