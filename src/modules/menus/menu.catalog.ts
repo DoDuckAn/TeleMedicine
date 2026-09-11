@@ -29,6 +29,7 @@ export const menuCatalog:Record<UserRole,Page[]>={
         {path:"/admin/specialties",label:"Chuyên khoa",iconKey:"Tags"},
         {path:"/admin/appointments",label:"Lịch hẹn",iconKey:"CalendarClock"},
         {path:"/admin/reviews",label:"Đánh giá",iconKey:"MessageSquareText"},
+        {path:"/admin/settings",label:"Cài đặt",iconKey:"Settings"},
         {path:"/admin/menus",label:"Quản lý menu",iconKey:"ListTree",protected:true},
     ],
 };

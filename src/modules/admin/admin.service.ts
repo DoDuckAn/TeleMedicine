@@ -13,6 +13,7 @@ import type {
     UpdateAdminDoctorInput,
     UpdateUserStatusInput,
 } from "./admin.schema.js";
+import {assertWeeklyScheduleWithinWorkday,getScheduleSettings} from "../system-settings/system-setting.service.js";
 
 function pagination(page:number,limit:number,total:number){
     return {page,limit,total,totalPages:Math.ceil(total/limit)};
@@ -131,6 +132,9 @@ export async function updateDoctor(doctorId:string,input:UpdateAdminDoctorInput)
     });
     if(!doctor){
         throw new ApiError("DOCTOR_NOT_FOUND");
+    }
+    if(input.weeklySchedule!==undefined){
+        assertWeeklyScheduleWithinWorkday(input.weeklySchedule,await getScheduleSettings());
     }
     const specialtyIds=input.specialtyIds?[...new Set(input.specialtyIds)]:undefined;
     if(specialtyIds){

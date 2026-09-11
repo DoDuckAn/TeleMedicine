@@ -7,6 +7,7 @@ import {
   UserRole,
 } from "../../../generated/prisma/enums.js";
 import { prisma } from "../../lib/prisma.js";
+import {assertWeeklyScheduleWithinWorkday,getScheduleSettings} from "../system-settings/system-setting.service.js";
 import {verifyFirebasePhoneIdToken} from "../../lib/firebase.js";
 import { createTokenId, hashToken } from "../../lib/token.js";
 import { signAccessToken, signRefreshToken, verifyRefreshToken } from "../../lib/jwt.js";
@@ -204,6 +205,7 @@ export async function loginStaff(input: LoginStaffInput) {
 }
 
 export async function createDoctor(input: CreateDoctorInput) {
+  assertWeeklyScheduleWithinWorkday(input.weeklySchedule,await getScheduleSettings());
   const existedUser = await prisma.user.findFirst({
     where: { email: input.email },
     select: { id: true },

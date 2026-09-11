@@ -1,4 +1,6 @@
 export const errorCatalog = {
+  SETTINGS_VERSION_CONFLICT: { statusCode: 409, message: "Cài đặt đã được cập nhật ở nơi khác" },
+  SCHEDULE_OUTSIDE_WORKING_HOURS: { statusCode: 400, message: "Lịch làm việc phải nằm trong giờ làm việc của hệ thống" },
   APPOINTMENT_DATE_OUT_OF_RANGE: { statusCode: 400, message: "Thời gian đặt lịch nằm ngoài khoảng cho phép" },
   APPOINTMENT_FORBIDDEN: { statusCode: 403, message: "Không có quyền thao tác với lịch hẹn này" },
   APPOINTMENT_NOT_CANCELLABLE: { statusCode: 409, message: "Lịch hẹn không còn có thể hủy" },

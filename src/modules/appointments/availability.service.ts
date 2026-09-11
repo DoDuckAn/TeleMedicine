@@ -17,6 +17,10 @@ import {
   weeklyScheduleToTimeRanges,
   type TimeRange,
 } from "./appointment-time.js";
+import {
+  getScheduleSettings,
+  getWorkdayWindow,
+} from "../system-settings/system-setting.service.js";
 
 export type DailyAvailability = {
   date: string;
@@ -57,7 +61,7 @@ export async function getDoctorAvailability(
     endAt: upcomingDays.at(-1)!.endAt,
   };
 
-  const [overrides, reservations] = await Promise.all([
+  const [overrides, reservations, settings] = await Promise.all([
     prisma.doctorScheduleOverride.findMany({
       where: {
         doctorID: doctor.userID,
@@ -82,6 +86,7 @@ export async function getDoctorAvailability(
         endAt: true,
       },
     }),
+    getScheduleSettings(),
   ]);
 
   const availableOverrideRanges: TimeRange[] = overrides.filter(
@@ -110,10 +115,10 @@ export async function getDoctorAvailability(
       reservationRanges,
       day,
     );
-    const candidateRanges = mergeRanges([
-      ...weeklyRanges,
-      ...availableToday,
-    ]);
+    const candidateRanges = clipRangesToWindow(
+      mergeRanges([...weeklyRanges, ...availableToday]),
+      getWorkdayWindow(day.date, settings),
+    );
     const slots: TimeRange[] = splitIntoSlots(
       candidateRanges,
       config.schedule.slotDurationMinutes,

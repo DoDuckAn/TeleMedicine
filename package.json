@@ -4,9 +4,10 @@
   "main": "index.js",
   "scripts": {
     "test:realtime": "tsx --test --test-concurrency=1 tests/realtime.test.ts",
-    "test": "npm run test:profile && npm run test:admin",
+    "test": "npm run test:profile && npm run test:admin && npm run test:settings",
     "test:profile": "tsx --test --test-concurrency=1 tests/profile-email-auth.test.ts",
     "test:admin": "tsx --test --test-concurrency=1 tests/admin-management.test.ts",
+    "test:settings": "tsx --test --test-concurrency=1 tests/system-settings.test.ts",
     "test:typecheck": "tsc -p tests/tsconfig.json",
     "dev": "tsx watch src/server.ts",
     "build": "tsc",

@@ -32,6 +32,12 @@ import type {
   RestoreScheduleOverridesInput,
   UpdateWeeklyScheduleInput,
 } from "./schedule-override.schema.js";
+import {
+  assertAvailableRangeWithinWorkday,
+  assertWeeklyScheduleWithinWorkday,
+  getScheduleSettings,
+  getWorkdayWindow,
+} from "../system-settings/system-setting.service.js";
 
 const ACTIVE_APPOINTMENT_STATUSES=[
   AppointmentStatus.PENDING_CONFIRMATION,
@@ -79,6 +85,8 @@ export async function updateWeeklySchedule(
   input: UpdateWeeklyScheduleInput,
 ) {
   await findDoctorSchedule(doctorId);
+  const settings=await getScheduleSettings();
+  assertWeeklyScheduleWithinWorkday(input.weeklySchedule,settings);
   const doctor=await prisma.doctorProfile.update({
     where: { userID: doctorId },
     data: { weeklySchedule: input.weeklySchedule },
@@ -135,6 +143,10 @@ export async function createOverride(
   input: CreateScheduleOverrideInput,
 ) {
   await findDoctorSchedule(doctorId);
+  if(input.type===DoctorScheduleOverrideType.AVAILABLE){
+    const settings=await getScheduleSettings();
+    input.ranges.forEach(range=>assertAvailableRangeWithinWorkday(range,settings));
+  }
   const now=new Date();
   if (input.ranges.some((range) => range.endAt<=now)) {
     throw new ApiError("SCHEDULE_OVERRIDE_IN_PAST");
@@ -415,6 +427,7 @@ export async function getDoctorCalendar(
   query: DoctorCalendarQuery,
 ) {
   const doctor=await findDoctorSchedule(doctorId);
+  const settings=await getScheduleSettings();
   const weeklySchedule=weeklyScheduleSchema.parse(doctor.weeklySchedule);
   const weekStart=resolveWeekStart(query);
   const weekEnd=addDaysToDateString(weekStart, 7);
@@ -501,9 +514,12 @@ export async function getDoctorCalendar(
     const appointmentsToday=appointments.filter((appointment) =>
       rangesOverlap(appointment, day),
     );
+    const availableRanges=clipRangesToWindow(
+      mergeRanges([...weeklyRanges,...availableToday]),
+      getWorkdayWindow(date,settings),
+    );
     const candidateRanges=mergeRanges([
-      ...weeklyRanges,
-      ...availableToday,
+      ...availableRanges,
       ...appointmentsToday.map((appointment) => ({
         startAt: appointment.startAt,
         endAt: appointment.endAt,
