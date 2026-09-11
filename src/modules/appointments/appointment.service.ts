@@ -500,11 +500,7 @@ export async function getAppointmentDetail(
     });
 
     if (!appointment) {
-        throw new ApiError(
-            404,
-            "APPOINTMENT_NOT_FOUND",
-            "Khong tim thay lich hen",
-        );
+        throw new ApiError("APPOINTMENT_NOT_FOUND");
     }
 
     const isOwner =
@@ -513,11 +509,7 @@ export async function getAppointmentDetail(
         appointment.patientID === currentUser.id;
 
     if (!isOwner) {
-        throw new ApiError(
-            403,
-            "APPOINTMENT_FORBIDDEN",
-            "Khong co quyen xem lich hen nay",
-        );
+        throw new ApiError("APPOINTMENT_FORBIDDEN");
     }
 
     const {user:patientUser,...patientProfile}=appointment.patient;
@@ -546,19 +538,11 @@ export async function confirmAppointment(
     });
 
     if (!existingAppointment) {
-        throw new ApiError(
-            404,
-            "APPOINTMENT_NOT_FOUND",
-            "Khong tim thay lich hen",
-        );
+        throw new ApiError("APPOINTMENT_NOT_FOUND");
     }
 
     if (existingAppointment.doctorID !== doctorId) {
-        throw new ApiError(
-            403,
-            "APPOINTMENT_FORBIDDEN",
-            "Khong co quyen xac nhan lich hen nay",
-        );
+        throw new ApiError("APPOINTMENT_FORBIDDEN");
     }
 
     const now = new Date();
@@ -568,11 +552,7 @@ export async function confirmAppointment(
         existingAppointment.confirmationDueAt <= now ||
         existingAppointment.startAt <= now
     ) {
-        throw new ApiError(
-            409,
-            "APPOINTMENT_NOT_CONFIRMABLE",
-            "Lich hen khong con co the xac nhan",
-        );
+        throw new ApiError("APPOINTMENT_NOT_CONFIRMABLE");
     }
 
     const meetingSpace = await createGoogleMeetSpace();
@@ -597,11 +577,7 @@ export async function confirmAppointment(
         });
 
         if (updated.count !== 1) {
-            throw new ApiError(
-                409,
-                "APPOINTMENT_NOT_CONFIRMABLE",
-                "Lich hen khong con co the xac nhan",
-            );
+            throw new ApiError("APPOINTMENT_NOT_CONFIRMABLE");
         }
 
         const lockedReservation =
@@ -614,11 +590,7 @@ export async function confirmAppointment(
             });
 
         if (lockedReservation.count !== 1) {
-            throw new ApiError(
-                409,
-                "APPOINTMENT_NOT_CONFIRMABLE",
-                "Khung gio giu cho lich hen khong con hieu luc",
-            );
+            throw new ApiError("APPOINTMENT_NOT_CONFIRMABLE");
         }
 
         const appointment = await tx.appointment.findUniqueOrThrow({
@@ -760,36 +732,20 @@ export async function completeAppointment(
     });
 
     if (!appointment) {
-        throw new ApiError(
-            404,
-            "APPOINTMENT_NOT_FOUND",
-            "Khong tim thay lich hen",
-        );
+        throw new ApiError("APPOINTMENT_NOT_FOUND");
     }
 
     if (appointment.doctorID !== doctorId) {
-        throw new ApiError(
-            403,
-            "APPOINTMENT_FORBIDDEN",
-            "Khong co quyen hoan thanh lich hen nay",
-        );
+        throw new ApiError("APPOINTMENT_FORBIDDEN");
     }
 
     const now = new Date();
     if (appointment.status !== AppointmentStatus.CONFIRMED) {
-        throw new ApiError(
-            409,
-            "APPOINTMENT_NOT_COMPLETABLE",
-            "Lich hen khong con co the hoan thanh",
-        );
+        throw new ApiError("APPOINTMENT_NOT_COMPLETABLE");
     }
 
     if (now < appointment.startAt) {
-        throw new ApiError(
-            409,
-            "APPOINTMENT_NOT_STARTED",
-            "Chua den gio bat dau lich hen",
-        );
+        throw new ApiError("APPOINTMENT_NOT_STARTED");
     }
 
     const completedAppointment = await prisma.$transaction(async (tx) => {
@@ -808,11 +764,7 @@ export async function completeAppointment(
         });
 
         if (updated.count !== 1) {
-            throw new ApiError(
-                409,
-                "APPOINTMENT_NOT_COMPLETABLE",
-                "Lich hen khong con co the hoan thanh",
-            );
+            throw new ApiError("APPOINTMENT_NOT_COMPLETABLE");
         }
 
         await tx.appointmentSlotReservation.deleteMany({
@@ -878,19 +830,11 @@ export async function rejectAppointment(
     });
 
     if (!existingAppointment) {
-        throw new ApiError(
-            404,
-            "APPOINTMENT_NOT_FOUND",
-            "Khong tim thay lich hen",
-        );
+        throw new ApiError("APPOINTMENT_NOT_FOUND");
     }
 
     if (existingAppointment.doctorID !== doctorId) {
-        throw new ApiError(
-            403,
-            "APPOINTMENT_FORBIDDEN",
-            "Khong co quyen tu choi lich hen nay",
-        );
+        throw new ApiError("APPOINTMENT_FORBIDDEN");
     }
 
     const now = new Date();
@@ -912,11 +856,7 @@ export async function rejectAppointment(
         });
 
         if (updated.count !== 1) {
-            throw new ApiError(
-                409,
-                "APPOINTMENT_NOT_REJECTABLE",
-                "Lich hen khong con co the tu choi",
-            );
+            throw new ApiError("APPOINTMENT_NOT_REJECTABLE");
         }
 
         const releasedReservation =
@@ -928,11 +868,7 @@ export async function rejectAppointment(
             });
 
         if (releasedReservation.count !== 1) {
-            throw new ApiError(
-                409,
-                "APPOINTMENT_NOT_REJECTABLE",
-                "Khung gio giu cho lich hen khong con hieu luc",
-            );
+            throw new ApiError("APPOINTMENT_NOT_REJECTABLE");
         }
 
         const appointment = await tx.appointment.findUniqueOrThrow({
@@ -988,11 +924,7 @@ export async function cancelAppointment(
     });
 
     if (!appointment) {
-        throw new ApiError(
-            404,
-            "APPOINTMENT_NOT_FOUND",
-            "Khong tim thay lich hen",
-        );
+        throw new ApiError("APPOINTMENT_NOT_FOUND");
     }
 
     const isOwner =
@@ -1003,11 +935,7 @@ export async function cancelAppointment(
             appointment.patientID === currentUser.id);
 
     if (!isOwner) {
-        throw new ApiError(
-            403,
-            "APPOINTMENT_FORBIDDEN",
-            "Khong co quyen huy lich hen nay",
-        );
+        throw new ApiError("APPOINTMENT_FORBIDDEN");
     }
 
     const cancellableStatuses: AppointmentStatus[] = [
@@ -1016,11 +944,7 @@ export async function cancelAppointment(
     ];
 
     if (!cancellableStatuses.includes(appointment.status)) {
-        throw new ApiError(
-            409,
-            "APPOINTMENT_NOT_CANCELLABLE",
-            "Lich hen khong con co the huy",
-        );
+        throw new ApiError("APPOINTMENT_NOT_CANCELLABLE");
     }
 
     const now = new Date();
@@ -1030,11 +954,7 @@ export async function cancelAppointment(
     );
 
     if (now.getTime() > cancelDeadline.getTime()) {
-        throw new ApiError(
-            409,
-            "CANCELLATION_TOO_LATE",
-            `Chi duoc huy truoc gio hen it nhat ${config.schedule.appointmentCancelBeforeMinutes} phut`,
-        );
+        throw new ApiError("CANCELLATION_TOO_LATE");
     }
 
     const actor = getAppointmentActor(currentUser.role);
@@ -1063,11 +983,7 @@ export async function cancelAppointment(
         });
 
         if (updated.count !== 1) {
-            throw new ApiError(
-                409,
-                "APPOINTMENT_NOT_CANCELLABLE",
-                "Lich hen khong con co the huy",
-            );
+            throw new ApiError("APPOINTMENT_NOT_CANCELLABLE");
         }
 
         await tx.appointmentSlotReservation.deleteMany({
@@ -1157,10 +1073,10 @@ export async function createAppointment(input:CreateAppointmentInput){
     })
 
     if(!patient){
-        throw new ApiError(404,"PATIENT_NOT_FOUND","Khong tim thay benh nhan");
+        throw new ApiError("PATIENT_NOT_FOUND");
     };
     if(patient.user.status!==UserStatus.ACTIVE){
-        throw new ApiError(403,"USER_DISABLED","Nguoi dung da bi vo hieu hoa");
+        throw new ApiError("USER_DISABLED");
     };
 
     const doctor=await prisma.doctorProfile.findUnique({
@@ -1177,19 +1093,19 @@ export async function createAppointment(input:CreateAppointmentInput){
     });
 
     if(!doctor){
-        throw new ApiError(404,"DOCTOR_NOT_FOUND","Khong tim thay bac si");
+        throw new ApiError("DOCTOR_NOT_FOUND");
     };
     if(doctor.user.status!==UserStatus.ACTIVE){
-        throw new ApiError(403,"USER_DISABLED","Nguoi dung da bi vo hieu hoa");
+        throw new ApiError("USER_DISABLED");
     }
 
     if(!isInUpcomingDays(input.startAt)){
-        throw new ApiError(400,"APPOINTMENT_DATE_OUT_OF_RANGE","Thoi gian dat lich nam ngoai khoang cho phep");
+        throw new ApiError("APPOINTMENT_DATE_OUT_OF_RANGE");
     };
 
     const checkAvaible=await checkSlotAvailable({startAt:input.startAt,doctorId:input.doctorId});
     if(!checkAvaible){
-        throw new ApiError(409,"APPOINTMENT_SLOT_UNAVAILABLE","Khung gio khong con kha dung");
+        throw new ApiError("APPOINTMENT_SLOT_UNAVAILABLE");
     };
 
     const checkOverlap=await checkOverlapAppointment({
@@ -1197,7 +1113,7 @@ export async function createAppointment(input:CreateAppointmentInput){
         patientId:input.patientId,
     });
     if(checkOverlap){
-        throw new ApiError(409,"PATIENT_TIME_CONFLICT","Da dang ky lich khac cung khung gio");
+        throw new ApiError("PATIENT_TIME_CONFLICT");
     };
 
     try {
@@ -1343,18 +1259,10 @@ export async function createAppointment(input:CreateAppointmentInput){
           });
 
         if (patientReservation) {
-          throw new ApiError(
-            409,
-            "PATIENT_TIME_CONFLICT",
-            "Benh nhan da co lich trong khung gio nay",
-          );
+          throw new ApiError("PATIENT_TIME_CONFLICT");
         }
 
-        throw new ApiError(
-          409,
-          "SLOT_ALREADY_RESERVED",
-          "Khung gio vua duoc nguoi khac dat",
-        );
+        throw new ApiError("SLOT_ALREADY_RESERVED");
       }
 
       throw error;

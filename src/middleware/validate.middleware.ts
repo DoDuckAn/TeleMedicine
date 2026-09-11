@@ -8,12 +8,7 @@ export function validateBody(schema: ZodSchema): RequestHandler{
 
         if(!result.success){
             return next(
-                new ApiError(
-                    400,
-                    "VALIDATION_ERROR",
-                    "Du lieu khong hop le",
-                    result.error.issues,
-                ),
+                new ApiError("VALIDATION_ERROR", result.error.issues),
             );
         }
 
@@ -28,12 +23,7 @@ export function validateParams(schema: ZodSchema): RequestHandler {
 
         if (!result.success) {
             return next(
-                new ApiError(
-                    400,
-                    "VALIDATION_ERROR",
-                    "Tham so duong dan khong hop le",
-                    result.error.issues,
-                ),
+                new ApiError("VALIDATION_ERROR", result.error.issues),
             );
         }
 
@@ -48,12 +38,7 @@ export function validateQuery(schema: ZodSchema): RequestHandler {
 
         if (!result.success) {
             return next(
-                new ApiError(
-                    400,
-                    "VALIDATION_ERROR",
-                    "Tham so truy van khong hop le",
-                    result.error.issues,
-                ),
+                new ApiError("VALIDATION_ERROR", result.error.issues),
             );
         }
         return next();

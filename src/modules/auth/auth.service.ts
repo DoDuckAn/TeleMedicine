@@ -80,7 +80,7 @@ async function getVerifiedPhone(idToken:string,verifier:PhoneTokenVerifier){
   try{
     return await verifier(idToken);
   }catch{
-    throw new ApiError(401,"INVALID_FIREBASE_TOKEN","Firebase ID token khong hop le hoac da het han");
+    throw new ApiError("INVALID_FIREBASE_TOKEN");
   }
 }
 
@@ -94,7 +94,7 @@ export async function registerPatient(
     select:{id:true},
   });
   if(existedUser){
-    throw new ApiError(409,"PHONE_ALREADY_EXISTS","So dien thoai da ton tai");
+    throw new ApiError("PHONE_ALREADY_EXISTS");
   }
   let createdUser;
   try{
@@ -122,7 +122,7 @@ export async function registerPatient(
     });
   }catch(error){
     if(isPrismaUniqueError(error)){
-      throw new ApiError(409,"PHONE_ALREADY_EXISTS","So dien thoai da ton tai");
+      throw new ApiError("PHONE_ALREADY_EXISTS");
     }
     throw error;
   }
@@ -147,13 +147,13 @@ export async function loginPatient(
     },
   });
   if(!user){
-    throw new ApiError(404,"PATIENT_NOT_FOUND","Khong tim thay tai khoan benh nhan");
+    throw new ApiError("PATIENT_NOT_FOUND");
   }
   if(user.status!=="ACTIVE"){
-    throw new ApiError(403,"USER_DISABLED","Tai khoan da bi khoa");
+    throw new ApiError("USER_DISABLED");
   }
   if(user.firebaseUid&&user.firebaseUid!==uid){
-    throw new ApiError(401,"FIREBASE_ACCOUNT_MISMATCH","Tai khoan Firebase khong khop voi benh nhan");
+    throw new ApiError("FIREBASE_ACCOUNT_MISMATCH");
   }
   try{
     await prisma.user.update({
@@ -162,7 +162,7 @@ export async function loginPatient(
     });
   }catch(error){
     if(isPrismaUniqueError(error)){
-      throw new ApiError(409,"FIREBASE_ACCOUNT_ALREADY_LINKED","Tai khoan Firebase da lien ket voi benh nhan khac");
+      throw new ApiError("FIREBASE_ACCOUNT_ALREADY_LINKED");
     }
     throw error;
   }
@@ -187,17 +187,17 @@ export async function loginStaff(input: LoginStaffInput) {
   });
 
   if (!user || !user.passwordHash) {
-    throw new ApiError(401, "INVALID_CREDENTIALS", "Email hoac mat khau khong dung");
+    throw new ApiError("INVALID_CREDENTIALS");
   }
 
   const isPasswordValid = await bcrypt.compare(input.password, user.passwordHash);
 
   if (!isPasswordValid) {
-    throw new ApiError(401, "INVALID_CREDENTIALS", "Email hoac mat khau khong dung");
+    throw new ApiError("INVALID_CREDENTIALS");
   }
 
   if (user.status !== "ACTIVE") {
-    throw new ApiError(403, "USER_DISABLED", "Tai khoan da bi khoa");
+    throw new ApiError("USER_DISABLED");
   }
 
   return issueSession(user);
@@ -210,7 +210,7 @@ export async function createDoctor(input: CreateDoctorInput) {
   });
 
   if (existedUser) {
-    throw new ApiError(409, "EMAIL_ALREADY_EXISTS", "Email da ton tai");
+    throw new ApiError("EMAIL_ALREADY_EXISTS");
   }
 
   const specialtyIds = [...new Set(input.specialtyIds)];
@@ -225,12 +225,7 @@ export async function createDoctor(input: CreateDoctorInput) {
   if (specialties.length !== specialtyIds.length) {
     const existingIds = new Set(specialties.map((specialty) => specialty.id));
     const missingIds = specialtyIds.filter((id) => !existingIds.has(id));
-    throw new ApiError(
-      400,
-      "SPECIALTY_NOT_AVAILABLE",
-      "Mot hoac nhieu chuyen khoa khong ton tai hoac da bi vo hieu hoa",
-      { missingIds },
-    );
+    throw new ApiError("SPECIALTY_NOT_AVAILABLE", { missingIds });
   }
 
   const passwordHash = await bcrypt.hash(config.defaultDoctorPassword, SALT_BCRYPT);
@@ -327,11 +322,11 @@ export async function getMe(userId: string) {
   });
 
   if (!user) {
-    throw new ApiError(404, "USER_NOT_FOUND", "Khong tim thay tai khoan");
+    throw new ApiError("USER_NOT_FOUND");
   }
 
   if (user.status !== "ACTIVE") {
-    throw new ApiError(403, "USER_DISABLED", "Nguoi dung da bi vo hieu hoa");
+    throw new ApiError("USER_DISABLED");
   }
 
   return user;
@@ -345,11 +340,11 @@ export async function refresh(input: RefreshInput) {
 
   const tokenHash = hashToken(input.refreshToken);
   if (!storedToken || storedToken.revokedAt || storedToken.replacedByID || storedToken.tokenHash !== tokenHash) {
-    throw new ApiError(401, "INVALID_REFRESH_TOKEN", "Refresh token khong hop le");
+    throw new ApiError("INVALID_REFRESH_TOKEN");
   }
 
   if (storedToken.expiresAt < new Date()) {
-    throw new ApiError(401, "REFRESH_TOKEN_EXPIRED", "Refresh token da het han");
+    throw new ApiError("REFRESH_TOKEN_EXPIRED");
   }
 
   const user = await prisma.user.findUnique({
@@ -365,7 +360,7 @@ export async function refresh(input: RefreshInput) {
   });
 
   if (!user || user.status !== "ACTIVE" || user.tokenVersion !== payload.tokenVersion) {
-    throw new ApiError(401, "INVALID_REFRESH_TOKEN", "Refresh token khong con hop le");
+    throw new ApiError("INVALID_REFRESH_TOKEN");
   }
 
   const newRefreshTokenId = createTokenId();
@@ -415,11 +410,11 @@ export async function logout(input: LogOutInput) {
 
   const tokenHash = hashToken(input.refreshToken);
   if (!storedToken || storedToken.revokedAt || storedToken.replacedByID || storedToken.tokenHash !== tokenHash) {
-    throw new ApiError(401, "INVALID_REFRESH_TOKEN", "Refresh token khong hop le");
+    throw new ApiError("INVALID_REFRESH_TOKEN");
   }
 
   if (storedToken.expiresAt < new Date()) {
-    throw new ApiError(401, "REFRESH_TOKEN_EXPIRED", "Refresh token da het han");
+    throw new ApiError("REFRESH_TOKEN_EXPIRED");
   }
 
   await prisma.refreshToken.updateMany({

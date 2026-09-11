@@ -112,7 +112,7 @@ export async function updateNotificationPreference(
     if(input.channels?.email===true){
         const user=await prisma.user.findUnique({where:{id:userId},select:{email:true}});
         if(!user?.email){
-            throw new ApiError(400,"EMAIL_REQUIRED","Can cap nhat email truoc khi bat thong bao qua email");
+            throw new ApiError("EMAIL_REQUIRED");
         }
     }
     const preference=await prisma.notificationPreference.upsert({
@@ -196,7 +196,7 @@ export async function markNotificationRead(userId:string,notificationId:string){
         data:{readAt:new Date()},
     });
     if(updated.count!==1){
-        throw new ApiError(404,"NOTIFICATION_NOT_FOUND","Khong tim thay thong bao");
+        throw new ApiError("NOTIFICATION_NOT_FOUND");
     }
     return prisma.userNotification.findUniqueOrThrow({where:{id:notificationId}});
 }

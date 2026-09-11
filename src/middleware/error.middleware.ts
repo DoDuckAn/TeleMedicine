@@ -1,6 +1,7 @@
 ﻿import type { ErrorRequestHandler } from "express";
 import { ApiError } from "../common/api-error.js";
 import multer from "multer";
+import {errorCatalog} from "../common/error-catalog.js";
 
 export const errorMiddleware: ErrorRequestHandler = (err, _req, res, _next) => {
   if (err instanceof ApiError) {
@@ -15,24 +16,25 @@ export const errorMiddleware: ErrorRequestHandler = (err, _req, res, _next) => {
   }
 
   if(err instanceof multer.MulterError){
-    return res.status(400).json({
+    const code=err.code==="LIMIT_FILE_SIZE"?"AVATAR_TOO_LARGE":"INVALID_AVATAR_UPLOAD";
+    const definition=errorCatalog[code];
+    return res.status(definition.statusCode).json({
       success:false,
       error:{
-        code:"INVALID_AVATAR_UPLOAD",
-        message:err.code==="LIMIT_FILE_SIZE"
-          ?"Anh dai dien khong duoc vuot qua 5MB"
-          :"File anh dai dien khong hop le",
+        code,
+        message:definition.message,
       },
     });
   }
 
   console.error(err);
 
-  return res.status(500).json({
+  const definition=errorCatalog.INTERNAL_SERVER_ERROR;
+  return res.status(definition.statusCode).json({
     success: false,
     error: {
       code: "INTERNAL_SERVER_ERROR",
-      message: "Loi he thong",
+      message: definition.message,
     },
   });
 };

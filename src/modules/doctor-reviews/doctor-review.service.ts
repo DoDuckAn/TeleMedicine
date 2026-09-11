@@ -41,7 +41,7 @@ export async function getReviewEligibility(patientId:string,doctorId:string){
     select:{userID:true,fullName:true},
   });
   if(!doctor){
-    throw new ApiError(404,"DOCTOR_NOT_FOUND","Khong tim thay bac si");
+    throw new ApiError("DOCTOR_NOT_FOUND");
   }
 
   const [completedAppointment,review]=await Promise.all([
@@ -96,7 +96,7 @@ export async function createDoctorReview(
     select:{userID:true},
   });
   if(!doctor){
-    throw new ApiError(404,"DOCTOR_NOT_FOUND","Khong tim thay bac si");
+    throw new ApiError("DOCTOR_NOT_FOUND");
   }
 
   const completedAppointment=await prisma.appointment.findFirst({
@@ -108,11 +108,7 @@ export async function createDoctorReview(
     select:{id:true},
   });
   if(!completedAppointment){
-    throw new ApiError(
-      409,
-      "NO_COMPLETED_APPOINTMENT",
-      "Can co it nhat mot buoi kham hoan thanh voi bac si",
-    );
+    throw new ApiError("NO_COMPLETED_APPOINTMENT");
   }
 
   try{
@@ -134,11 +130,7 @@ export async function createDoctorReview(
     });
   }catch(error){
     if(error instanceof Prisma.PrismaClientKnownRequestError&&error.code==="P2002"){
-      throw new ApiError(
-        409,
-        "DOCTOR_ALREADY_REVIEWED",
-        "Benh nhan da danh gia bac si nay",
-      );
+      throw new ApiError("DOCTOR_ALREADY_REVIEWED");
     }
     throw error;
   }
@@ -153,7 +145,7 @@ export async function listPublicDoctorReviews(
     select:{userID:true},
   });
   if(!doctor){
-    throw new ApiError(404,"DOCTOR_NOT_FOUND","Khong tim thay bac si");
+    throw new ApiError("DOCTOR_NOT_FOUND");
   }
 
   const where:PrismaTypes.DoctorReviewWhereInput={
@@ -268,13 +260,13 @@ export async function replyDoctorReview(
     select:{id:true,status:true,doctorReply:true},
   });
   if(!review){
-    throw new ApiError(404,"REVIEW_NOT_FOUND","Khong tim thay danh gia");
+    throw new ApiError("REVIEW_NOT_FOUND");
   }
   if(review.status===DoctorReviewStatus.HIDDEN){
-    throw new ApiError(409,"REVIEW_HIDDEN","Khong the phan hoi danh gia dang bi an");
+    throw new ApiError("REVIEW_HIDDEN");
   }
   if(review.doctorReply){
-    throw new ApiError(409,"REVIEW_ALREADY_REPLIED","Danh gia da duoc phan hoi");
+    throw new ApiError("REVIEW_ALREADY_REPLIED");
   }
 
   const repliedAt=new Date();
@@ -288,7 +280,7 @@ export async function replyDoctorReview(
     data:{doctorReply:input.content,repliedAt},
   });
   if(updated.count!==1){
-    throw new ApiError(409,"REVIEW_ALREADY_REPLIED","Danh gia da duoc phan hoi");
+    throw new ApiError("REVIEW_ALREADY_REPLIED");
   }
 
   return prisma.doctorReview.findUniqueOrThrow({
@@ -365,7 +357,7 @@ export async function moderateDoctorReview(
     select:{id:true},
   });
   if(!review){
-    throw new ApiError(404,"REVIEW_NOT_FOUND","Khong tim thay danh gia");
+    throw new ApiError("REVIEW_NOT_FOUND");
   }
 
   return prisma.doctorReview.update({

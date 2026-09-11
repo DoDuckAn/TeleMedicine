@@ -208,7 +208,7 @@ export async function getDoctorDetail(doctorId: string) {
   });
 
   if (!doctor) {
-    throw new ApiError(404, "DOCTOR_NOT_FOUND", "Khong tim thay bac si");
+    throw new ApiError("DOCTOR_NOT_FOUND");
   }
 
   const rating = await prisma.doctorReview.aggregate({
@@ -247,7 +247,7 @@ export async function getDoctorSchedule(doctorId: string) {
   });
 
   if (!doctor) {
-    throw new ApiError(404, "DOCTOR_NOT_FOUND", "Khong tim thay bac si");
+    throw new ApiError("DOCTOR_NOT_FOUND");
   }
 
   return {

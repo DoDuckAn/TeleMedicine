@@ -8,7 +8,7 @@ export const avatarUpload=multer({
     limits:{fileSize:5*1024*1024,files:1},
     fileFilter:(_req,file,callback)=>{
         if(!allowedMimeTypes.has(file.mimetype)){
-            callback(new ApiError(400,"INVALID_AVATAR_TYPE","Anh dai dien chi ho tro JPEG, PNG hoac WebP"));
+            callback(new ApiError("INVALID_AVATAR_TYPE"));
             return;
         }
         callback(null,true);

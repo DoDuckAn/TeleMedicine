@@ -35,7 +35,7 @@ async function createAndSendOtp(
         ?new Date(currentOtp.updatedAt.getTime()+config.doctorPasswordOtp.resendSeconds*1000)
         :null;
     if(currentOtp&&!currentOtp.consumedAt&&resendAt&&resendAt>new Date()){
-        throw new ApiError(429,"PASSWORD_OTP_RESEND_TOO_SOON","Vui long cho truoc khi gui lai OTP");
+        throw new ApiError("PASSWORD_OTP_RESEND_TOO_SOON");
     }
     const code=createEmailOtp();
     const codeHash=hashEmailOtp(code);
@@ -65,7 +65,7 @@ async function createAndSendOtp(
         });
     }catch{
         await prisma.doctorPasswordOtp.deleteMany({where:{userID:userId,purpose,codeHash}});
-        throw new ApiError(502,"EMAIL_SEND_FAILED","Khong the gui OTP qua email");
+        throw new ApiError("EMAIL_SEND_FAILED");
     }
 }
 
@@ -78,20 +78,20 @@ async function verifyOtp(
         where:{userID_purpose:{userID:userId,purpose}},
     });
     if(!otp||otp.consumedAt){
-        throw new ApiError(400,"PASSWORD_OTP_NOT_FOUND","Khong tim thay OTP hop le");
+        throw new ApiError("PASSWORD_OTP_NOT_FOUND");
     }
     if(otp.expiresAt<new Date()){
-        throw new ApiError(400,"PASSWORD_OTP_EXPIRED","OTP da het han");
+        throw new ApiError("PASSWORD_OTP_EXPIRED");
     }
     if(otp.attempts>=config.doctorPasswordOtp.maxAttempts){
-        throw new ApiError(429,"PASSWORD_OTP_MAX_ATTEMPTS","Da vuot qua so lan nhap OTP cho phep");
+        throw new ApiError("PASSWORD_OTP_MAX_ATTEMPTS");
     }
     if(hashEmailOtp(code)!==otp.codeHash){
         await prisma.doctorPasswordOtp.updateMany({
             where:{id:otp.id,consumedAt:null},
             data:{attempts:{increment:1}},
         });
-        throw new ApiError(400,"INVALID_PASSWORD_OTP","OTP khong hop le");
+        throw new ApiError("INVALID_PASSWORD_OTP");
     }
     return otp.id;
 }
@@ -104,7 +104,7 @@ async function saveNewPassword(userId:string,otpId:string,newPassword:string){
             data:{consumedAt:new Date()},
         });
         if(consumed.count!==1){
-            throw new ApiError(400,"PASSWORD_OTP_ALREADY_USED","OTP da duoc su dung");
+            throw new ApiError("PASSWORD_OTP_ALREADY_USED");
         }
         await tx.user.update({
             where:{id:userId},
@@ -127,7 +127,7 @@ export async function requestDoctorPasswordChangeOtp(
         select:{email:true},
     });
     if(!doctor?.email){
-        throw new ApiError(400,"DOCTOR_EMAIL_REQUIRED","Bac si chua co email hop le");
+        throw new ApiError("DOCTOR_EMAIL_REQUIRED");
     }
     await createAndSendOtp(
         userId,
@@ -144,13 +144,13 @@ export async function changeDoctorPassword(userId:string,input:ChangeDoctorPassw
         select:{passwordHash:true},
     });
     if(!doctor?.passwordHash){
-        throw new ApiError(404,"DOCTOR_NOT_FOUND","Khong tim thay tai khoan bac si");
+        throw new ApiError("DOCTOR_NOT_FOUND");
     }
     if(!await bcrypt.compare(input.currentPassword,doctor.passwordHash)){
-        throw new ApiError(400,"INVALID_CURRENT_PASSWORD","Mat khau hien tai khong dung");
+        throw new ApiError("INVALID_CURRENT_PASSWORD");
     }
     if(await bcrypt.compare(input.newPassword,doctor.passwordHash)){
-        throw new ApiError(400,"PASSWORD_UNCHANGED","Mat khau moi phai khac mat khau hien tai");
+        throw new ApiError("PASSWORD_UNCHANGED");
     }
     const otpId=await verifyOtp(
         userId,
@@ -191,10 +191,10 @@ export async function resetDoctorPassword(input:ResetDoctorPasswordInput){
         select:{id:true,passwordHash:true},
     });
     if(!doctor){
-        throw new ApiError(400,"INVALID_PASSWORD_OTP","Email hoac OTP khong hop le");
+        throw new ApiError("INVALID_PASSWORD_OTP");
     }
     if(doctor.passwordHash&&await bcrypt.compare(input.newPassword,doctor.passwordHash)){
-        throw new ApiError(400,"PASSWORD_UNCHANGED","Mat khau moi phai khac mat khau hien tai");
+        throw new ApiError("PASSWORD_UNCHANGED");
     }
     const otpId=await verifyOtp(
         doctor.id,

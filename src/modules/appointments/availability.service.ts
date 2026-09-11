@@ -41,7 +41,7 @@ export async function getDoctorAvailability(
   });
 
   if (!doctor) {
-    throw new ApiError(404, "DOCTOR_NOT_FOUND", "Khong tim thay bac si");
+    throw new ApiError("DOCTOR_NOT_FOUND");
   }
 
   const weeklySchedule = weeklyScheduleSchema.parse(doctor.weeklySchedule);

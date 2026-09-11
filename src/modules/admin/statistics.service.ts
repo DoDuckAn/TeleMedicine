@@ -85,10 +85,10 @@ function resolveRange(query:StatisticsQuery,now:Date){
     const to=query.to??now;
     const from=query.from??new Date(to.getTime()-29*DAY_MS);
     if(from>=to){
-        throw new ApiError(400,"INVALID_STATISTICS_RANGE","to phai lon hon from");
+        throw new ApiError("INVALID_STATISTICS_RANGE");
     }
     if(to.getTime()-from.getTime()>366*DAY_MS){
-        throw new ApiError(400,"STATISTICS_RANGE_TOO_LARGE","Khoang thong ke khong duoc vuot qua 366 ngay");
+        throw new ApiError("STATISTICS_RANGE_TOO_LARGE");
     }
     return {from,to};
 }
@@ -109,7 +109,7 @@ export async function getAppointmentStatistics(
         },
     }):null;
     if(doctorId&&!doctor){
-        throw new ApiError(404,"DOCTOR_NOT_FOUND","Khong tim thay bac si");
+        throw new ApiError("DOCTOR_NOT_FOUND");
     }
     const appointments=await prisma.appointment.findMany({
         where:{

@@ -18,7 +18,7 @@ async function ensureEmailAvailable(userId:string,email:string|null|undefined){
         select:{id:true},
     });
     if(existed){
-        throw new ApiError(409,"EMAIL_ALREADY_EXISTS","Email da duoc su dung");
+        throw new ApiError("EMAIL_ALREADY_EXISTS");
     }
 }
 
@@ -43,7 +43,7 @@ export async function getPatientProfile(userId:string){
         },
     });
     if(!user?.patientProfile){
-        throw new ApiError(404,"PATIENT_PROFILE_NOT_FOUND","Khong tim thay ho so benh nhan");
+        throw new ApiError("PATIENT_PROFILE_NOT_FOUND");
     }
     return user;
 }
@@ -67,7 +67,7 @@ export async function updatePatientProfile(userId:string,input:UpdatePatientProf
                 data:profileData,
             });
             if(patient.count!==1){
-                throw new ApiError(404,"PATIENT_PROFILE_NOT_FOUND","Khong tim thay ho so benh nhan");
+                throw new ApiError("PATIENT_PROFILE_NOT_FOUND");
             }
             if(email!==undefined){
                 await tx.user.update({where:{id:userId},data:{email}});
@@ -85,7 +85,7 @@ export async function updatePatientProfile(userId:string,input:UpdatePatientProf
         });
     }catch(error){
         if(isPrismaUniqueError(error)){
-            throw new ApiError(409,"EMAIL_ALREADY_EXISTS","Email da duoc su dung");
+            throw new ApiError("EMAIL_ALREADY_EXISTS");
         }
         throw error;
     }
@@ -109,7 +109,7 @@ export async function getDoctorProfile(userId:string){
         },
     });
     if(!user?.doctorProfile){
-        throw new ApiError(404,"DOCTOR_PROFILE_NOT_FOUND","Khong tim thay ho so bac si");
+        throw new ApiError("DOCTOR_PROFILE_NOT_FOUND");
     }
     return user;
 }
@@ -130,7 +130,7 @@ export async function updateDoctorProfile(userId:string,input:UpdateDoctorProfil
                 data:profileData,
             });
             if(doctor.count!==1){
-                throw new ApiError(404,"DOCTOR_PROFILE_NOT_FOUND","Khong tim thay ho so bac si");
+                throw new ApiError("DOCTOR_PROFILE_NOT_FOUND");
             }
             if(email!==undefined){
                 await tx.user.update({where:{id:userId},data:{email}});
@@ -142,7 +142,7 @@ export async function updateDoctorProfile(userId:string,input:UpdateDoctorProfil
         });
     }catch(error){
         if(isPrismaUniqueError(error)){
-            throw new ApiError(409,"EMAIL_ALREADY_EXISTS","Email da duoc su dung");
+            throw new ApiError("EMAIL_ALREADY_EXISTS");
         }
         throw error;
     }
@@ -157,26 +157,26 @@ async function uploadProfileAvatar(
     uploader:AvatarUploader,
 ){
     if(!file){
-        throw new ApiError(400,"AVATAR_REQUIRED","Can gui file avatar");
+        throw new ApiError("AVATAR_REQUIRED");
     }
     let uploaded:AvatarUploadResult;
     try{
         uploaded=await uploader(file.buffer,userId,role);
     }catch{
-        throw new ApiError(502,"AVATAR_UPLOAD_FAILED","Khong the tai anh len Cloudinary");
+        throw new ApiError("AVATAR_UPLOAD_FAILED");
     }
     if(role==="patient"){
         const result=await prisma.patientProfile.updateMany({
             where:{userID:userId,user:{role:UserRole.PATIENT}},
             data:{avatar:uploaded.url},
         });
-        if(result.count!==1)throw new ApiError(404,"PATIENT_PROFILE_NOT_FOUND","Khong tim thay ho so benh nhan");
+        if(result.count!==1)throw new ApiError("PATIENT_PROFILE_NOT_FOUND");
     }else{
         const result=await prisma.doctorProfile.updateMany({
             where:{userID:userId,user:{role:UserRole.DOCTOR}},
             data:{avatarUrl:uploaded.url},
         });
-        if(result.count!==1)throw new ApiError(404,"DOCTOR_PROFILE_NOT_FOUND","Khong tim thay ho so bac si");
+        if(result.count!==1)throw new ApiError("DOCTOR_PROFILE_NOT_FOUND");
     }
     return {avatarUrl:uploaded.url};
 }

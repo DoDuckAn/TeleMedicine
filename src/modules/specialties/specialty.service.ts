@@ -44,12 +44,7 @@ async function ensureUniqueSpecialty(
   });
 
   if (duplicated) {
-    throw new ApiError(
-      409,
-      "SPECIALTY_ALREADY_EXISTS",
-      "Ma hoac ten chuyen khoa da ton tai",
-      duplicated,
-    );
+    throw new ApiError("SPECIALTY_ALREADY_EXISTS", duplicated);
   }
 }
 
@@ -63,7 +58,7 @@ async function getSpecialtyOrThrow(specialtyId: string, activeOnly = false) {
   });
 
   if (!specialty) {
-    throw new ApiError(404, "SPECIALTY_NOT_FOUND", "Khong tim thay chuyen khoa");
+    throw new ApiError("SPECIALTY_NOT_FOUND");
   }
 
   return specialty;
@@ -94,14 +89,14 @@ export async function updateSpecialtyDoctors(specialtyId:string,input:{
   const removeDoctorIds=[...new Set(input.removeDoctorIds)];
   return prisma.$transaction(async tx=>{
     const specialty=await tx.specialty.findUnique({where:{id:specialtyId},select:{status:true,deletedAt:true}});
-    if(!specialty)throw new ApiError(404,"SPECIALTY_NOT_FOUND","Khong tim thay chuyen khoa");
+    if(!specialty)throw new ApiError("SPECIALTY_NOT_FOUND");
     if(addDoctorIds.length&&specialty.status!=="ACTIVE"){
-      throw new ApiError(409,"SPECIALTY_DISABLED","Khong the gan bac si vao chuyen khoa da an");
+      throw new ApiError("SPECIALTY_DISABLED");
     }
     const doctors=await tx.doctorProfile.count({
       where:{userID:{in:addDoctorIds},user:{role:"DOCTOR",status:"ACTIVE"}},
     });
-    if(doctors!==addDoctorIds.length)throw new ApiError(400,"DOCTOR_NOT_AVAILABLE","Bac si khong ton tai hoac da bi khoa");
+    if(doctors!==addDoctorIds.length)throw new ApiError("DOCTOR_NOT_AVAILABLE");
     return tx.specialty.update({
       where:{id:specialtyId},
       data:{doctors:{
@@ -203,27 +198,19 @@ export async function addDoctorToSpecialty(
   ]);
 
   if (!specialty) {
-    throw new ApiError(404, "SPECIALTY_NOT_FOUND", "Khong tim thay chuyen khoa");
+    throw new ApiError("SPECIALTY_NOT_FOUND");
   }
 
   if (specialty.status === SpecialtyStatus.DISABLED) {
-    throw new ApiError(
-      409,
-      "SPECIALTY_DISABLED",
-      "Chuyen khoa da bi vo hieu hoa",
-    );
+    throw new ApiError("SPECIALTY_DISABLED");
   }
 
   if (!doctor) {
-    throw new ApiError(404, "DOCTOR_NOT_FOUND", "Khong tim thay bac si");
+    throw new ApiError("DOCTOR_NOT_FOUND");
   }
 
   if (specialty.doctors.length > 0) {
-    throw new ApiError(
-      409,
-      "DOCTOR_ALREADY_IN_SPECIALTY",
-      "Bac si da thuoc chuyen khoa nay",
-    );
+    throw new ApiError("DOCTOR_ALREADY_IN_SPECIALTY");
   }
 
   return prisma.specialty.update({
@@ -249,15 +236,11 @@ export async function removeDoctorFromSpecialty(
   });
 
   if (!specialty) {
-    throw new ApiError(404, "SPECIALTY_NOT_FOUND", "Khong tim thay chuyen khoa");
+    throw new ApiError("SPECIALTY_NOT_FOUND");
   }
 
   if (specialty.doctors.length === 0) {
-    throw new ApiError(
-      404,
-      "DOCTOR_NOT_IN_SPECIALTY",
-      "Bac si khong thuoc chuyen khoa nay",
-    );
+    throw new ApiError("DOCTOR_NOT_IN_SPECIALTY");
   }
 
   return prisma.specialty.update({

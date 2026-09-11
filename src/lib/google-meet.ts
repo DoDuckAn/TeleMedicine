@@ -14,11 +14,7 @@ function createMeetClient() {
         !config.googleMeet.clientSecret ||
         !config.googleMeet.refreshToken
     ) {
-        throw new ApiError(
-            503,
-            "GOOGLE_MEET_NOT_CONFIGURED",
-            "Google Meet chua duoc cau hinh",
-        );
+        throw new ApiError("GOOGLE_MEET_NOT_CONFIGURED");
     }
 
     const auth = new google.auth.OAuth2(
@@ -115,11 +111,7 @@ export async function createGoogleMeetSpace(): Promise<GoogleMeetSpace> {
             status: getGoogleStatus(error),
             reason: getGoogleErrorMessage(error),
         });
-        throw new ApiError(
-            502,
-            "GOOGLE_MEET_CREATE_FAILED",
-            "Khong the tao phong Google Meet",
-        );
+        throw new ApiError("GOOGLE_MEET_CREATE_FAILED");
     }
 }
 
@@ -158,12 +150,7 @@ export async function closeGoogleMeetSpace(spaceName: string) {
                 spaceName,
                 status,
             });
-            throw new ApiError(
-                502,
-                "GOOGLE_MEET_CLOSE_FAILED",
-                "Khong the ket thuc phong Google Meet",
-                getGoogleErrorMessage(error),
-            );
+            throw new ApiError("GOOGLE_MEET_CLOSE_FAILED", getGoogleErrorMessage(error));
         }
     }
 
@@ -183,11 +170,6 @@ export async function closeGoogleMeetSpace(spaceName: string) {
             spaceName,
             status: getGoogleStatus(error),
         });
-        throw new ApiError(
-            502,
-            "GOOGLE_MEET_CLOSE_FAILED",
-            "Khong the khoa phong Google Meet",
-            getGoogleErrorMessage(error),
-        );
+        throw new ApiError("GOOGLE_MEET_CLOSE_FAILED", getGoogleErrorMessage(error));
     }
 }

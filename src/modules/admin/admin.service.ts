@@ -115,7 +115,7 @@ export async function getDoctorDetail(doctorId:string){
         },
     });
     if(!doctor){
-        throw new ApiError(404,"DOCTOR_NOT_FOUND","Khong tim thay bac si");
+        throw new ApiError("DOCTOR_NOT_FOUND");
     }
     const rating=await prisma.doctorReview.aggregate({
         where:{doctorID:doctorId},
@@ -130,7 +130,7 @@ export async function updateDoctor(doctorId:string,input:UpdateAdminDoctorInput)
         select:{userID:true},
     });
     if(!doctor){
-        throw new ApiError(404,"DOCTOR_NOT_FOUND","Khong tim thay bac si");
+        throw new ApiError("DOCTOR_NOT_FOUND");
     }
     const specialtyIds=input.specialtyIds?[...new Set(input.specialtyIds)]:undefined;
     if(specialtyIds){
@@ -143,11 +143,7 @@ export async function updateDoctor(doctorId:string,input:UpdateAdminDoctorInput)
             select:{id:true},
         });
         if(specialties.length!==specialtyIds.length){
-            throw new ApiError(
-                400,
-                "SPECIALTY_NOT_AVAILABLE",
-                "Mot hoac nhieu chuyen khoa khong ton tai hoac da bi vo hieu hoa",
-            );
+            throw new ApiError("SPECIALTY_NOT_AVAILABLE");
         }
     }
     const profileData={
@@ -168,7 +164,7 @@ export async function updateDoctor(doctorId:string,input:UpdateAdminDoctorInput)
         });
     }catch(error){
         if(isPrismaUniqueError(error)){
-            throw new ApiError(409,"EMAIL_ALREADY_EXISTS","Email da duoc su dung");
+            throw new ApiError("EMAIL_ALREADY_EXISTS");
         }
         throw error;
     }
@@ -250,7 +246,7 @@ export async function getPatientDetail(patientId:string){
         },
     });
     if(!patient){
-        throw new ApiError(404,"PATIENT_NOT_FOUND","Khong tim thay benh nhan");
+        throw new ApiError("PATIENT_NOT_FOUND");
     }
     return patient;
 }
@@ -266,14 +262,10 @@ export async function updateUserStatus(
         select:{id:true,status:true},
     });
     if(!user){
-        throw new ApiError(
-            404,
-            expectedRole===UserRole.DOCTOR?"DOCTOR_NOT_FOUND":"PATIENT_NOT_FOUND",
-            expectedRole===UserRole.DOCTOR?"Khong tim thay bac si":"Khong tim thay benh nhan",
-        );
+        throw new ApiError(expectedRole===UserRole.DOCTOR?"DOCTOR_NOT_FOUND":"PATIENT_NOT_FOUND");
     }
     if(user.status===input.status){
-        throw new ApiError(409,"USER_STATUS_UNCHANGED","Trang thai tai khoan khong thay doi");
+        throw new ApiError("USER_STATUS_UNCHANGED");
     }
     await prisma.$transaction(async(tx)=>{
         const updated=await tx.user.updateMany({
@@ -284,7 +276,7 @@ export async function updateUserStatus(
             },
         });
         if(updated.count!==1){
-            throw new ApiError(409,"USER_STATUS_CHANGED","Trang thai tai khoan da duoc thay doi");
+            throw new ApiError("USER_STATUS_CHANGED");
         }
         await tx.userStatusHistory.create({
             data:{

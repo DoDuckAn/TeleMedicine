@@ -1,10 +1,14 @@
+import {errorCatalog,type ApiErrorCode} from "./error-catalog.js";
+
 export class ApiError extends Error {
-    constructor(
-        public statusCode: number,
-        public code: string,
-        message: string,
-        public details?: unknown 
-    ){
-        super(message)
+    readonly statusCode:number;
+    readonly code:ApiErrorCode;
+
+    constructor(code:ApiErrorCode,public details?:unknown){
+        const definition=errorCatalog[code];
+        super(definition.message);
+        this.name="ApiError";
+        this.code=code;
+        this.statusCode=definition.statusCode;
     }
 }

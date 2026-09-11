@@ -58,7 +58,7 @@ async function findDoctorSchedule(doctorId: string, includeDisabled=false) {
   });
 
   if (!doctor) {
-    throw new ApiError(404, "DOCTOR_NOT_FOUND", "Khong tim thay bac si");
+    throw new ApiError("DOCTOR_NOT_FOUND");
   }
 
   return doctor;
@@ -137,11 +137,7 @@ export async function createOverride(
   await findDoctorSchedule(doctorId);
   const now=new Date();
   if (input.ranges.some((range) => range.endAt<=now)) {
-    throw new ApiError(
-      400,
-      "SCHEDULE_OVERRIDE_IN_PAST",
-      "Khong the tao khoang thay doi lich da ket thuc",
-    );
+    throw new ApiError("SCHEDULE_OVERRIDE_IN_PAST");
   }
 
   const result=await prisma.$transaction(async (tx) => {
@@ -157,11 +153,7 @@ export async function createOverride(
     });
 
     if (overlappingOverride) {
-      throw new ApiError(
-        409,
-        "SCHEDULE_OVERRIDE_OVERLAP",
-        "Khoang thoi gian da co thay doi lich khac",
-      );
+      throw new ApiError("SCHEDULE_OVERRIDE_OVERLAP");
     }
 
     const overrides=[];
@@ -386,22 +378,14 @@ export async function deleteOverride(doctorId: string, overrideId: string) {
   });
 
   if (deleted.count!==1) {
-    throw new ApiError(
-      404,
-      "SCHEDULE_OVERRIDE_NOT_FOUND",
-      "Khong tim thay thay doi lich",
-    );
+    throw new ApiError("SCHEDULE_OVERRIDE_NOT_FOUND");
   }
 }
 
 function resolveWeekStart(query: DoctorCalendarQuery) {
   if (query.weekStart) {
     if (getWeekdayKey(query.weekStart, config.schedule.timezone)!=="MONDAY") {
-      throw new ApiError(
-        400,
-        "WEEK_START_NOT_MONDAY",
-        "weekStart phai la ngay thu Hai",
-      );
+      throw new ApiError("WEEK_START_NOT_MONDAY");
     }
     return query.weekStart;
   }

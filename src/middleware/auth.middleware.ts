@@ -8,13 +8,13 @@ export const requireAuth: RequestHandler = async (req, _res, next) => {
   const authorization = req.headers.authorization;
 
   if (!authorization) {
-    return next(new ApiError(401, "UNAUTHORIZED", "Chua dang nhap"));
+    return next(new ApiError("UNAUTHORIZED"));
   }
 
   const [scheme, token] = authorization.split(" ");
 
   if (scheme !== "Bearer" || !token) {
-    return next(new ApiError(401, "UNAUTHORIZED", "Token khong hop le"));
+    return next(new ApiError("UNAUTHORIZED"));
   }
 
   try {
@@ -34,19 +34,19 @@ export const requireAuth: RequestHandler = async (req, _res, next) => {
 
     if(!user){
       return next(
-        new ApiError(401, "UNAUTHORIZED", "Tai khoan khong ton tai")
+        new ApiError("UNAUTHORIZED")
       );
     }
 
     if(user.status!=="ACTIVE"){
       return next(
-        new ApiError(403, "USER_DISABLED", "Tai khoan da bi khoa")
+        new ApiError("USER_DISABLED")
       )
     }
 
     if(user.tokenVersion!==payload.tokenVersion){
       return next(
-        new ApiError(401,"TOKEN_REVOKED","Phien dang nhap khong con hop le")
+        new ApiError("TOKEN_REVOKED")
       );
     }
 
@@ -58,18 +58,18 @@ export const requireAuth: RequestHandler = async (req, _res, next) => {
 
     return next();
   } catch {
-    return next(new ApiError(401, "UNAUTHORIZED", "Token khong hop le hoac da het han"));
+    return next(new ApiError("UNAUTHORIZED"));
   }
 };
 
 export function requireRole(...roles:UserRole[]):RequestHandler{
     return (req,_res,next)=>{
         if(!req.user){
-            return next(new ApiError(401, "UNAUTHORIZED", "Chua dang nhap"));
+            return next(new ApiError("UNAUTHORIZED"));
         }
 
         if(!roles.includes(req.user.role)){
-            return next(new ApiError(403, "FORBIDDEN", "Khong co quyen truy cap"));
+            return next(new ApiError("FORBIDDEN"));
         }
 
         return next();
