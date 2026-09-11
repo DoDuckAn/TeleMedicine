@@ -6,6 +6,7 @@ import {prisma} from "./prisma.js";
 
 type Session={id:string;role:string;tokenVersion:number;token:string};
 type Events={
+    "menus.changed":(data:{role:string})=>void;
     "appointments.changed":()=>void;
     "notifications.changed":()=>void;
     "schedule.changed":(data:{doctorId:string})=>void;
@@ -92,6 +93,14 @@ export async function publishNotificationsChanged(userIds:string[]){
     if(!io)return;
     try{for(const socket of await recipients(userIds))socket.emit("notifications.changed");}
     catch(error){console.error("Realtime notification update failed",error instanceof Error?error.message:"Unknown error");}
+}
+
+export async function publishMenusChanged(role:string){
+    if(!io)return;
+    try{
+        const sockets=[...io.sockets.sockets.values()].filter(socket=>socket.data.session.role===role||socket.data.session.role==="ADMIN");
+        for(const socket of await authorizedSockets(sockets))socket.emit("menus.changed",{role});
+    }catch(error){console.error("Realtime menu update failed",error instanceof Error?error.message:"Unknown error");}
 }
 
 export async function publishScheduleChanged(doctorId:string){

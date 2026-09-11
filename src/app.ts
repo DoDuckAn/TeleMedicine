@@ -13,6 +13,7 @@ import { doctorScheduleRouter } from "./modules/schedule-overrides/schedule-over
 import { doctorReviewRouter } from "./modules/doctor-reviews/doctor-review.routes.js";
 import {patientProfileRouter} from "./modules/profiles/patient-profile.routes.js";
 import {adminRouter} from "./modules/admin/admin.routes.js";
+import {menuRouter,adminMenuRouter} from "./modules/menus/menu.routes.js";
 
 export const app = express();
 
@@ -26,6 +27,8 @@ app.use(morgan("dev"));
 
 app.use("/api/v1/auth",authRouter);
 app.use("/api/v1/admin",adminRouter);
+app.use("/api/v1/menus",menuRouter);
+app.use("/api/v1/admin/menus",adminMenuRouter);
 app.use("/api/v1/specialties", specialtyRouter);
 app.use("/api/v1/doctors", doctorRouter);
 app.use("/api/v1/patients",patientProfileRouter);
