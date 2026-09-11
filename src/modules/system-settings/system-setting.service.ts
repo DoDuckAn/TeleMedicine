@@ -1,11 +1,19 @@
 import { formatInTimeZone, fromZonedTime } from "date-fns-tz";
+import bcrypt from "bcrypt";
 import type { Prisma } from "../../../generated/prisma/client.js";
 import { ApiError } from "../../common/api-error.js";
 import { config } from "../../config/env.js";
 import { prisma } from "../../lib/prisma.js";
 import type { WeeklySchedule } from "../doctors/doctor.schema.js";
 import type { TimeRange } from "../appointments/appointment-time.js";
-import type { UpdateScheduleSettingsInput } from "./system-setting.schema.js";
+import type {
+  SaveSystemSettingsInput,
+  UpdateScheduleSettingsInput,
+} from "./system-setting.schema.js";
+import {
+  applyIntegrationSecretUpdates,
+  getIntegrationSecretStatuses,
+} from "./integration-secret.service.js";
 
 const SETTING_ID = "system";
 const DEFAULT_START = 8 * 60;
@@ -46,6 +54,14 @@ export async function getPublicScheduleSettings() {
   return serialize(await getScheduleSettings());
 }
 
+export async function getAdminSystemSettings() {
+  const [schedule, integrations] = await Promise.all([
+    getScheduleSettings(),
+    getIntegrationSecretStatuses(),
+  ]);
+  return { ...serialize(schedule), integrations };
+}
+
 export async function updateScheduleSettings(input: UpdateScheduleSettingsInput) {
   const setting = await prisma.$transaction(async (tx) => {
     const updated = await tx.systemSetting.updateMany({
@@ -60,6 +76,38 @@ export async function updateScheduleSettings(input: UpdateScheduleSettingsInput)
     return tx.systemSetting.findUniqueOrThrow({ where: { id: SETTING_ID } });
   });
   return serialize(setting);
+}
+
+export async function saveSystemSettings(
+  adminId: string,
+  input: SaveSystemSettingsInput,
+) {
+  const admin = await prisma.user.findUnique({
+    where: { id: adminId },
+    select: { passwordHash: true },
+  });
+  if (!admin?.passwordHash || !(await bcrypt.compare(input.currentPassword, admin.passwordHash))) {
+    throw new ApiError("INVALID_CURRENT_PASSWORD");
+  }
+
+  await prisma.$transaction(async (tx) => {
+    const lock = await tx.systemSetting.updateMany({
+      where: { id: SETTING_ID, version: input.version },
+      data: {
+        ...(input.schedule
+          ? {
+              workdayStartMinutes: input.schedule.workdayStartMinutes,
+              workdayEndMinutes: input.schedule.workdayEndMinutes,
+            }
+          : {}),
+        version: { increment: 1 },
+      },
+    });
+    if (!lock.count) throw new ApiError("SETTINGS_VERSION_CONFLICT");
+    await applyIntegrationSecretUpdates(tx, input.credentials);
+  });
+
+  return getAdminSystemSettings();
 }
 
 export function assertWeeklyScheduleWithinWorkday(

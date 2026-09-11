@@ -1,5 +1,5 @@
 import {v2 as cloudinary} from "cloudinary";
-import {config} from "../config/env.js";
+import {resolveIntegrationSecrets} from "../modules/system-settings/integration-secret.service.js";
 
 export type AvatarUploadResult={
     url:string;
@@ -11,7 +11,14 @@ export async function uploadAvatar(
     userId:string,
     role:"patient"|"doctor",
 ):Promise<AvatarUploadResult>{
-    const {cloudName,apiKey,apiSecret}=config.cloudinary;
+    const credentials=await resolveIntegrationSecrets([
+        "CLOUDINARY_CLOUD_NAME",
+        "CLOUDINARY_API_KEY",
+        "CLOUDINARY_API_SECRET",
+    ]);
+    const cloudName=credentials.CLOUDINARY_CLOUD_NAME;
+    const apiKey=credentials.CLOUDINARY_API_KEY;
+    const apiSecret=credentials.CLOUDINARY_API_SECRET;
     if(!cloudName||!apiKey||!apiSecret){
         throw new Error("Cloudinary is not configured");
     }

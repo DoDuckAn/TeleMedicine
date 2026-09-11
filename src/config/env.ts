@@ -17,6 +17,10 @@ const envSchema=z.object({
 
     JWT_REFRESH_EXPIRES_IN: z.string().default("30d"),
     JWT_REFRESH_EXPIRES_DAYS: z.coerce.number().int().positive().default(30),
+    SETTINGS_ENCRYPTION_KEY:z.preprocess(
+        value=>value===""?undefined:value,
+        z.string().min(32).optional(),
+    ),
     DEFAULT_DOCTOR_PASSWORD: z.string().min(1, "DEFAULT_DOCTOR_PASSWORD is required"),
     APPOINTMENT_SLOT_DURATION_MINUTES:z.coerce.number().int().positive().default(30),
     APP_TIMEZONE:z.string().min(1).default("Asia/Ho_Chi_Minh"),
@@ -67,50 +71,6 @@ const envSchema=z.object({
     NOTIFICATION_RETRY_MINUTES: z.coerce.number().int().positive().default(5),
     NOTIFICATION_PROCESSING_TIMEOUT_MINUTES: z.coerce.number().int().positive().default(10),
     NOTIFICATION_MAX_AGE_HOURS: z.coerce.number().int().positive().default(24),
-}).superRefine((env, ctx) => {
-    if (env.GOOGLE_MEET_ENABLED) {
-        for (const key of [
-            "GOOGLE_CLIENT_ID",
-            "GOOGLE_CLIENT_SECRET",
-            "GOOGLE_REFRESH_TOKEN",
-        ] as const) {
-            if (!env[key]) {
-                ctx.addIssue({
-                    code: "custom",
-                    path: [key],
-                    message: `${key} is required when GOOGLE_MEET_ENABLED=true`,
-                });
-            }
-        }
-    }
-
-    if (env.FIREBASE_PUSH_ENABLED||env.FIREBASE_PHONE_AUTH_ENABLED) {
-        for (const key of [
-            "FIREBASE_PROJECT_ID",
-            "FIREBASE_CLIENT_EMAIL",
-            "FIREBASE_PRIVATE_KEY",
-        ] as const) {
-            if (!env[key]) {
-                ctx.addIssue({
-                    code: "custom",
-                    path: [key],
-                    message: `${key} is required when Firebase is enabled`,
-                });
-            }
-        }
-    }
-
-    if(env.EMAIL_ENABLED){
-        for(const key of ["SMTP_HOST","SMTP_USER","SMTP_PASSWORD","EMAIL_FROM"] as const){
-            if(!env[key]){
-                ctx.addIssue({
-                    code:"custom",
-                    path:[key],
-                    message:`${key} is required when EMAIL_ENABLED=true`,
-                });
-            }
-        }
-    }
 });
 
 const parsedEnv=envSchema.safeParse(process.env);
@@ -135,6 +95,9 @@ export const config={
     },
 
     databaseUrl:parsedEnv.data.DATABASE_URL,
+
+    settingsEncryptionKey:
+        parsedEnv.data.SETTINGS_ENCRYPTION_KEY??parsedEnv.data.JWT_REFRESH_SECRET,
 
     defaultDoctorPassword:parsedEnv.data.DEFAULT_DOCTOR_PASSWORD,
     

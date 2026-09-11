@@ -1,27 +1,33 @@
 import { google } from "googleapis";
 import { ApiError } from "../common/api-error.js";
 import { config } from "../config/env.js";
+import { resolveIntegrationSecrets } from "../modules/system-settings/integration-secret.service.js";
 
 export type GoogleMeetSpace = {
     name: string;
     meetingUrl: string;
 };
 
-function createMeetClient() {
+async function createMeetClient() {
+    const credentials=await resolveIntegrationSecrets([
+        "GOOGLE_CLIENT_ID",
+        "GOOGLE_CLIENT_SECRET",
+        "GOOGLE_REFRESH_TOKEN",
+    ]);
     if (
         !config.googleMeet.enabled ||
-        !config.googleMeet.clientId ||
-        !config.googleMeet.clientSecret ||
-        !config.googleMeet.refreshToken
+        !credentials.GOOGLE_CLIENT_ID ||
+        !credentials.GOOGLE_CLIENT_SECRET ||
+        !credentials.GOOGLE_REFRESH_TOKEN
     ) {
         throw new ApiError("GOOGLE_MEET_NOT_CONFIGURED");
     }
 
     const auth = new google.auth.OAuth2(
-        config.googleMeet.clientId,
-        config.googleMeet.clientSecret,
+        credentials.GOOGLE_CLIENT_ID,
+        credentials.GOOGLE_CLIENT_SECRET,
     );
-    auth.setCredentials({ refresh_token: config.googleMeet.refreshToken });
+    auth.setCredentials({ refresh_token: credentials.GOOGLE_REFRESH_TOKEN });
 
     return google.meet({ version: "v2", auth });
 }
@@ -81,7 +87,7 @@ async function withGoogleRetry<T>(operation: () => Promise<T>) {
 
 export async function createGoogleMeetSpace(): Promise<GoogleMeetSpace> {
     try {
-        const meet = createMeetClient();
+        const meet = await createMeetClient();
         const response = await withGoogleRetry(() =>
             meet.spaces.create({
                 requestBody: {
@@ -117,7 +123,7 @@ export async function createGoogleMeetSpace(): Promise<GoogleMeetSpace> {
 
 export async function limitGoogleMeetSpaceAccess(spaceName: string) {
     try {
-        const meet = createMeetClient();
+        const meet = await createMeetClient();
         await withGoogleRetry(() =>
             meet.spaces.patch({
                 name: spaceName,
@@ -137,7 +143,7 @@ export async function limitGoogleMeetSpaceAccess(spaceName: string) {
 }
 
 export async function closeGoogleMeetSpace(spaceName: string) {
-    const meet = createMeetClient();
+    const meet = await createMeetClient();
 
     try {
         await withGoogleRetry(() =>

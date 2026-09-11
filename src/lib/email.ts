@@ -1,5 +1,6 @@
 import nodemailer from "nodemailer";
 import {config} from "../config/env.js";
+import {resolveIntegrationSecrets} from "../modules/system-settings/integration-secret.service.js";
 
 export type EmailMessage={
     to:string;
@@ -8,20 +9,31 @@ export type EmailMessage={
 };
 
 let transporter:ReturnType<typeof nodemailer.createTransport>|null=null;
+let transporterSignature="";
 
-function getTransporter(){
-    if(!config.email.enabled||!config.email.host||!config.email.user||!config.email.password){
+async function getTransporter(){
+    const credentials=await resolveIntegrationSecrets([
+        "SMTP_HOST",
+        "SMTP_PORT",
+        "SMTP_SECURE",
+        "SMTP_USER",
+        "SMTP_PASSWORD",
+    ]);
+    if(!config.email.enabled||!credentials.SMTP_HOST||!credentials.SMTP_USER||!credentials.SMTP_PASSWORD){
         throw new Error("Email delivery is not configured");
     }
-    transporter??=nodemailer.createTransport({
-        host:config.email.host,
-        port:config.email.port,
-        secure:config.email.secure,
+    const signature=JSON.stringify(credentials);
+    if(transporter&&signature===transporterSignature)return transporter;
+    transporter=nodemailer.createTransport({
+        host:credentials.SMTP_HOST,
+        port:Number(credentials.SMTP_PORT??587),
+        secure:credentials.SMTP_SECURE==="true",
         auth:{
-            user:config.email.user,
-            pass:config.email.password,
+            user:credentials.SMTP_USER,
+            pass:credentials.SMTP_PASSWORD,
         },
     });
+    transporterSignature=signature;
     return transporter;
 }
 
@@ -39,8 +51,12 @@ export async function sendEmail(message:EmailMessage){
         console.info("[EMAIL_LOG]",message);
         return;
     }
-    await getTransporter().sendMail({
-        from:config.email.from,
+    const [transport,emailFrom]=await Promise.all([
+        getTransporter(),
+        resolveIntegrationSecrets(["EMAIL_FROM"]),
+    ]);
+    await transport.sendMail({
+        from:emailFrom.EMAIL_FROM,
         to:message.to,
         subject:message.subject,
         text:message.text,
