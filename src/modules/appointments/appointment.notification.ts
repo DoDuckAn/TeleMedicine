@@ -420,7 +420,9 @@ export async function sendDueAppointmentNotifications(
                         ? null
                         : new Date(
                               now.getTime() +
-                                  config.notification.retryMinutes * 60 * 1000,
+                                  Math.min(60 * 60_000,
+                                    config.notification.retryMinutes * 60_000 * 2 ** (attempts - 1)) +
+                                  Math.floor(Math.random() * 30_000),
                           ),
                     failureReason: message,
                 },

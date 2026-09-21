@@ -18,13 +18,45 @@ import {adminSystemSettingRouter,systemSettingRouter} from "./modules/system-set
 
 export const app = express();
 
+import { randomUUID } from "node:crypto";
+import { httpConfig } from "./config/http.js";
+import { apiLimiter, authLimiter, sensitiveLimiter, writeLimiter } from "./middleware/rate-limit.middleware.js";
+
+app.set("trust proxy", httpConfig.TRUST_PROXY_HOPS);
+app.disable("x-powered-by");
+app.use((_req, res, next) => {
+  res.setHeader("X-Request-Id", randomUUID());
+  res.setHeader("Cache-Control", "no-store");
+  next();
+});
+app.get("/api/v1/health", (_req, res) => {
+  res.status(app.locals.draining ? 503 : 200).json({
+    success: !app.locals.draining,
+    data: { status: app.locals.draining ? "draining" : "ok" },
+  });
+});
+
 app.use(helmet());
 app.use(cors({
   origin: allowedOrigins,
   credentials: true,
+  exposedHeaders: ["Retry-After", "RateLimit", "RateLimit-Policy", "X-Request-Id"],
 }));
-app.use(express.json());
-app.use(morgan("dev"));
+app.use(morgan(":method :url :status :response-time ms :res[x-request-id]"));
+app.use("/api/v1", apiLimiter);
+app.use("/api/v1", (req, res, next) => {
+  if (["GET", "HEAD", "OPTIONS"].includes(req.method)) return next();
+  return writeLimiter(req, res, next);
+});
+app.use(["/api/v1/auth/login", "/api/v1/auth/register"], authLimiter);
+app.use([
+  "/api/v1/auth/doctors/password", "/api/v1/doctors/me/password",
+  "/api/v1/admin/settings",
+], (req, res, next) => {
+  if (["GET", "HEAD", "OPTIONS"].includes(req.method)) return next();
+  return sensitiveLimiter(req, res, next);
+});
+app.use(express.json({ limit: "64kb" }));
 
 app.use("/api/v1/auth",authRouter);
 app.use("/api/v1/admin",adminRouter);
@@ -39,14 +71,5 @@ app.use("/api/v1/appointments", appointmentRouter);
 app.use("/api/v1/notifications", notificationRouter);
 app.use("/api/v1/doctor-schedule", doctorScheduleRouter);
 app.use("/api/v1/doctor-reviews",doctorReviewRouter);
-
-app.get("/api/v1/health", (_req, res) => {
-  res.json({
-    success: true,
-    data: {
-      status: "ok",
-    },
-  });
-});
 
 app.use(errorMiddleware);

@@ -1,0 +1,30 @@
+services:
+  - type: web
+    name: khambenhtuxa-api
+    runtime: node
+    plan: 0.5c-512mb
+    branch: main
+    autoDeployTrigger: checksPass
+    numInstances: 1
+    buildCommand: npm ci --include=dev && npx prisma generate && npm run build
+    startCommand: npx prisma migrate deploy && npm start
+    healthCheckPath: /api/v1/health
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: NODE_ENV
+        value: production
+      - key: TRUST_PROXY_HOPS
+        value: "1"
+      - key: CORS_ORIGINS
+        sync: false
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_ACCESS_SECRET
+        generateValue: true
+      - key: JWT_REFRESH_SECRET
+        generateValue: true
+      - key: SETTINGS_ENCRYPTION_KEY
+        sync: false
+      - key: DEFAULT_DOCTOR_PASSWORD
+        sync: false

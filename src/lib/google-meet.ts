@@ -29,7 +29,7 @@ async function createMeetClient() {
     );
     auth.setCredentials({ refresh_token: credentials.GOOGLE_REFRESH_TOKEN });
 
-    return google.meet({ version: "v2", auth });
+    return google.meet({ version: "v2", auth, timeout: 15_000, retry: false });
 }
 
 function getGoogleStatus(error: unknown) {
@@ -77,7 +77,7 @@ async function withGoogleRetry<T>(operation: () => Promise<T>) {
             }
 
             await new Promise((resolve) =>
-                setTimeout(resolve, 250 * 2 ** (attempt - 1)),
+                setTimeout(resolve, 500 * 2 ** (attempt - 1) + Math.random() * 250),
             );
         }
     }
@@ -88,16 +88,14 @@ async function withGoogleRetry<T>(operation: () => Promise<T>) {
 export async function createGoogleMeetSpace(): Promise<GoogleMeetSpace> {
     try {
         const meet = await createMeetClient();
-        const response = await withGoogleRetry(() =>
-            meet.spaces.create({
+        const response = await meet.spaces.create({
                 requestBody: {
                     config: {
                         accessType: "OPEN",
                         entryPointAccess: "ALL",
                     },
                 },
-            }),
-        );
+            });
 
         const { name, meetingUri } = response.data;
         if (!name || !meetingUri) {

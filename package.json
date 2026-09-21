@@ -3,6 +3,8 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
+    "check:database": "node scripts/check-database.mjs",
+    "test:http": "tsx --test tests/http-resilience.test.ts",
     "test:realtime": "tsx --test --test-concurrency=1 tests/realtime.test.ts",
     "test": "npm run test:profile && npm run test:admin && npm run test:settings",
     "test:profile": "tsx --test --test-concurrency=1 tests/profile-email-auth.test.ts",

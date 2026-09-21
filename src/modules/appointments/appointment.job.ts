@@ -239,13 +239,18 @@ export async function runAppointmentMaintenance(now = new Date()) {
 }
 
 export function startAppointmentJobs() {
-    cron.schedule("* * * * *", () => {
-        void runAppointmentMaintenance().catch((error) => {
-            console.error("Appointment maintenance job failed", error);
-        });
-    });
-
-    void runAppointmentMaintenance().catch((error) => {
-        console.error("Initial appointment maintenance failed", error);
-    });
+    let active:Promise<unknown>|undefined;
+    const run=()=>{
+        if(active)return;
+        active=runAppointmentMaintenance()
+            .catch(()=>console.error("Appointment maintenance job failed"))
+            .finally(()=>{active=undefined;});
+    };
+    const task=cron.schedule("* * * * *",run);
+    run();
+    return async()=>{
+        await task.stop();
+        await active;
+        await task.destroy();
+    };
 }

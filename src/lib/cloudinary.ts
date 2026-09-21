@@ -25,6 +25,7 @@ export async function uploadAvatar(
     cloudinary.config({cloud_name:cloudName,api_key:apiKey,api_secret:apiSecret});
     return new Promise((resolve,reject)=>{
         const stream=cloudinary.uploader.upload_stream({
+            timeout:30_000,
             folder:"telemedicine/avatars",
             public_id:`${role}-${userId}`,
             overwrite:true,

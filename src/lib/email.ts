@@ -25,6 +25,9 @@ async function getTransporter(){
     const signature=JSON.stringify(credentials);
     if(transporter&&signature===transporterSignature)return transporter;
     transporter=nodemailer.createTransport({
+        connectionTimeout:10_000,
+        greetingTimeout:10_000,
+        socketTimeout:30_000,
         host:credentials.SMTP_HOST,
         port:Number(credentials.SMTP_PORT??587),
         secure:credentials.SMTP_SECURE==="true",

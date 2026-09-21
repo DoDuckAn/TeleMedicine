@@ -9,6 +9,11 @@ if (!connectionString) {
   throw new Error("DATABASE_URL is required");
 }
 
-const adapter = new PrismaPg({ connectionString });
+const adapter = new PrismaPg({
+  connectionString,
+  max: 10,
+  connectionTimeoutMillis: 5_000,
+  idleTimeoutMillis: 30_000,
+});
 
 export const prisma = new PrismaClient({ adapter });
