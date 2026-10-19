@@ -65,53 +65,53 @@ export function buildAppointmentNotificationMessage(
     switch (notification.type) {
         case AppointmentNotificationType.BOOKING_CREATED:
             return {
-                title: "Yeu cau dat lich da duoc gui",
-                body: `Ban da gui yeu cau dat lich voi bac si ${doctorName} luc ${time}.`,
+                title: "Yêu cầu đặt lịch đã được gửi",
+                body: `Bạn đã gửi yêu cầu đặt lịch với bác sĩ ${doctorName} lúc ${time}.`,
             };
         case AppointmentNotificationType.REQUEST_CREATED:
             return {
-                title: "Yeu cau dat lich moi",
-                body: `${patientName} da gui yeu cau dat lich luc ${time}.`,
+                title: "Yêu cầu đặt lịch mới",
+                body: `${patientName} đã gửi yêu cầu đặt lịch lúc ${time}.`,
             };
         case AppointmentNotificationType.REQUEST_CONFIRMED:
             return {
-                title: "Lich hen da duoc xac nhan",
-                body: `Bac si ${doctorName} da xac nhan lich hen luc ${time}.`,
+                title: "Lịch hẹn đã được xác nhận",
+                body: `Bác sĩ ${doctorName} đã xác nhận lịch hẹn lúc ${time}.`,
             };
         case AppointmentNotificationType.REQUEST_REJECTED:
             return {
-                title: "Lich hen bi tu choi",
-                body: `Bac si ${doctorName} da tu choi lich hen luc ${time}.`,
+                title: "Lịch hẹn bị từ chối",
+                body: `Bác sĩ ${doctorName} đã từ chối lịch hẹn lúc ${time}.`,
             };
         case AppointmentNotificationType.REQUEST_EXPIRED:
             return {
-                title: "Yeu cau dat lich het han",
-                body: `Yeu cau dat lich voi bac si ${doctorName} luc ${time} da het han.`,
+                title: "Yêu cầu đặt lịch hết hạn",
+                body: `Yêu cầu đặt lịch với bác sĩ ${doctorName} lúc ${time} đã hết hạn.`,
             };
         case AppointmentNotificationType.APPOINTMENT_CANCELLED:
             return {
-                title: "Lich hen da bi huy",
-                body: `Lich hen luc ${time} da bi huy.`,
+                title: "Lịch hẹn đã bị hủy",
+                body: `Lịch hẹn lúc ${time} đã bị hủy.`,
             };
         case AppointmentNotificationType.REMINDER_1_HOUR:
             return {
-                title: "Sap den gio kham",
-                body: `Lich hen cua ban se bat dau luc ${time}, con 1 gio nua.`,
+                title: "Sắp đến giờ khám",
+                body: `Lịch hẹn của bạn sẽ bắt đầu lúc ${time}, còn 1 giờ nữa.`,
             };
         case AppointmentNotificationType.REMINDER_15_MINUTES:
             return {
-                title: "Sap den gio kham",
-                body: `Lich hen cua ban se bat dau luc ${time}, con 15 phut nua.`,
+                title: "Sắp đến giờ khám",
+                body: `Lịch hẹn của bạn sẽ bắt đầu lúc ${time}, còn 15 phút nữa.`,
             };
         case AppointmentNotificationType.APPOINTMENT_COMPLETED:
             return {
-                title: "Buoi kham da hoan thanh",
-                body: `Buoi kham voi bac si ${doctorName} luc ${time} da hoan thanh.`,
+                title: "Buổi khám đã hoàn thành",
+                body: `Buổi khám với bác sĩ ${doctorName} lúc ${time} đã hoàn thành.`,
             };
         case AppointmentNotificationType.DOCTOR_NO_SHOW:
             return {
-                title: "Buoi kham khong dien ra",
-                body: `Buoi kham voi bac si ${doctorName} luc ${time} khong dien ra.`,
+                title: "Buổi khám không diễn ra",
+                body: `Buổi khám với bác sĩ ${doctorName} lúc ${time} không diễn ra.`,
             };
     }
 }
