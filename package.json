@@ -3,6 +3,9 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
+    "db:seed": "prisma db seed",
+    "test:seed-config": "tsx --test tests/seed-config.test.ts",
+    "test:seed": "tsx --test tests/seed-data.test.ts",
     "check:database": "node scripts/check-database.mjs",
     "test:http": "tsx --test tests/http-resilience.test.ts",
     "test:realtime": "tsx --test --test-concurrency=1 tests/realtime.test.ts",

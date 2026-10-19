@@ -36,6 +36,7 @@ jobs:
     env:
       NODE_ENV: test
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/telemedicine_ci?schema=public
+      SEED_TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/telemedicine_ci?schema=public
       JWT_ACCESS_SECRET: ci-only-access-secret-not-for-production
       JWT_REFRESH_SECRET: ci-only-refresh-secret-not-for-production
       SETTINGS_ENCRYPTION_KEY: ci-only-encryption-key-not-for-production
