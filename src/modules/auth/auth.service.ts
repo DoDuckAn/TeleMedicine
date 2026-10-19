@@ -1,5 +1,7 @@
 ﻿import bcrypt from "bcrypt";
 import { ApiError } from "../../common/api-error.js";
+import { randomUUID } from "node:crypto";
+import { uploadAvatar, deleteAvatar, type AvatarUploadResult } from "../../lib/cloudinary.js";
 import { config } from "../../config/env.js";
 import {
   Gender,
@@ -209,7 +211,13 @@ export async function loginStaff(input: LoginStaffInput) {
   return issueSession(user);
 }
 
-export async function createDoctor(input: CreateDoctorInput) {
+export async function createDoctor(
+  input: Omit<CreateDoctorInput,"avatarUrl"> & {avatarUrl?:string},
+  file?:Pick<Express.Multer.File,"buffer">,
+  uploader=uploadAvatar,
+  remover=deleteAvatar,
+) {
+  if(!file&&!input.avatarUrl)throw new ApiError("AVATAR_REQUIRED");
   assertWeeklyScheduleWithinWorkday(input.weeklySchedule,await getScheduleSettings());
   const existedUser = await prisma.user.findFirst({
     where: { email: input.email },
@@ -236,53 +244,71 @@ export async function createDoctor(input: CreateDoctorInput) {
   }
 
   const passwordHash = await bcrypt.hash(config.defaultDoctorPassword, SALT_BCRYPT);
+  const userId=file?randomUUID():undefined;
+  let uploaded:AvatarUploadResult|undefined;
+  if(file){
+    try{
+      uploaded=await uploader(file.buffer,userId!,"doctor");
+    }catch{
+      throw new ApiError("AVATAR_UPLOAD_FAILED");
+    }
+  }
 
-  return prisma.user.create({
-    data: {
-      role: UserRole.DOCTOR,
-      email: input.email,
-      passwordHash,
-      doctorProfile: {
-        create: {
-          fullName: input.fullName,
-          yearsOfExperience: input.yearsOfExperience,
-          qualifications: input.qualifications,
-          avatarUrl: input.avatarUrl,
-          bio: input.bio,
-          weeklySchedule: input.weeklySchedule,
-          specialties: {
-            connect: specialtyIds.map((id) => ({ id })),
-          },
-        },
-      },
-    },
-    select: {
-      id: true,
-      role: true,
-      status: true,
-      email: true,
-      createdAt: true,
-      doctorProfile: {
-        select: {
-          fullName: true,
-          yearsOfExperience: true,
-          qualifications: true,
-          avatarUrl: true,
-          bio: true,
-          weeklySchedule: true,
-          specialties: {
-            where: { status: SpecialtyStatus.ACTIVE },
-            select: {
-              id: true,
-              code: true,
-              name: true,
+  try {
+    return await prisma.user.create({
+      data: {
+        ...(userId?{id:userId}:{}),
+        role: UserRole.DOCTOR,
+        email: input.email,
+        passwordHash,
+        doctorProfile: {
+          create: {
+            fullName: input.fullName,
+            yearsOfExperience: input.yearsOfExperience,
+            qualifications: input.qualifications,
+            avatarUrl: uploaded?.url??input.avatarUrl!,
+            bio: input.bio,
+            weeklySchedule: input.weeklySchedule,
+            specialties: {
+              connect: specialtyIds.map((id) => ({ id })),
             },
-            orderBy: { name: "asc" },
           },
         },
       },
-    },
-  });
+      select: {
+        id: true,
+        role: true,
+        status: true,
+        email: true,
+        createdAt: true,
+        doctorProfile: {
+          select: {
+            fullName: true,
+            yearsOfExperience: true,
+            qualifications: true,
+            avatarUrl: true,
+            bio: true,
+            weeklySchedule: true,
+            specialties: {
+              where: { status: SpecialtyStatus.ACTIVE },
+              select: {
+                id: true,
+                code: true,
+                name: true,
+              },
+              orderBy: { name: "asc" },
+            },
+          },
+        },
+      },
+    });
+  }catch(error){
+    if(uploaded){
+      try{await remover(uploaded.publicId);}
+      catch{console.error("Doctor avatar cleanup failed",{publicId:uploaded.publicId});}
+    }
+    throw error;
+  }
 }
 
 export async function getMe(userId: string) {

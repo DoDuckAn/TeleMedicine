@@ -69,6 +69,17 @@ export const createDoctorSchema = z.object({
 
 export type CreateDoctorInput = z.infer<typeof createDoctorSchema>;
 
+export const createDoctorMultipartSchema = z.object({
+  profile: z.string().transform((value, ctx) => {
+    try {
+      return JSON.parse(value) as unknown;
+    } catch {
+      ctx.addIssue({ code: "custom", message: "Thông tin bác sĩ không hợp lệ" });
+      return z.NEVER;
+    }
+  }).pipe(createDoctorSchema.omit({ avatarUrl: true })),
+}).transform(({ profile }) => profile);
+
 export const refreshSchema = z.object({
   refreshToken: z.string().min(1),
 });

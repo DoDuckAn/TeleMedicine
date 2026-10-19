@@ -19,7 +19,7 @@ export async function listDoctorOverrides(req:Request,res:Response){
 }
 
 export async function createDoctor(req:Request,res:Response){
-    return ok(res,await AuthService.createDoctor(req.body),201);
+    return ok(res,await AuthService.createDoctor(req.body,req.file),201);
 }
 
 export async function listDoctors(req:Request,res:Response){

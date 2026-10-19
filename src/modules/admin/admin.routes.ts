@@ -6,7 +6,9 @@ import {
     validateParams,
     validateQuery,
 } from "../../middleware/validate.middleware.js";
-import {createDoctorSchema} from "../auth/auth.schema.js";
+import {createDoctorSchema,createDoctorMultipartSchema} from "../auth/auth.schema.js";
+import {avatarUpload} from "../../middleware/avatar.middleware.js";
+import {ApiError} from "../../common/api-error.js";
 import * as AdminController from "./admin.controller.js";
 import * as AdminSchema from "./admin.schema.js";
 import * as StatisticsController from "./statistics.controller.js";
@@ -31,7 +33,14 @@ adminRouter.get(
 
 adminRouter.post(
     "/doctors",
-    validateBody(createDoctorSchema),
+    avatarUpload.single("avatar"),
+    (req,res,next)=>{
+        if(req.is("multipart/form-data")){
+            if(!req.file)return next(new ApiError("AVATAR_REQUIRED"));
+            return validateBody(createDoctorMultipartSchema)(req,res,next);
+        }
+        return validateBody(createDoctorSchema)(req,res,next);
+    },
     asyncHandler(AdminController.createDoctor),
 );
 

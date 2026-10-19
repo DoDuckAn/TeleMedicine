@@ -6,11 +6,7 @@ export type AvatarUploadResult={
     publicId:string;
 };
 
-export async function uploadAvatar(
-    buffer:Buffer,
-    userId:string,
-    role:"patient"|"doctor",
-):Promise<AvatarUploadResult>{
+async function configureCloudinary(){
     const credentials=await resolveIntegrationSecrets([
         "CLOUDINARY_CLOUD_NAME",
         "CLOUDINARY_API_KEY",
@@ -23,6 +19,20 @@ export async function uploadAvatar(
         throw new Error("Cloudinary is not configured");
     }
     cloudinary.config({cloud_name:cloudName,api_key:apiKey,api_secret:apiSecret});
+}
+
+export async function deleteAvatar(publicId:string){
+    await configureCloudinary();
+    const options={resource_type:"image" as const,timeout:30_000};
+    await cloudinary.uploader.destroy(publicId,options);
+}
+
+export async function uploadAvatar(
+    buffer:Buffer,
+    userId:string,
+    role:"patient"|"doctor",
+):Promise<AvatarUploadResult>{
+    await configureCloudinary();
     return new Promise((resolve,reject)=>{
         const stream=cloudinary.uploader.upload_stream({
             timeout:30_000,
