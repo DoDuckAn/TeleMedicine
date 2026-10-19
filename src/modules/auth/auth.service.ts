@@ -201,6 +201,11 @@ export async function loginStaff(input: LoginStaffInput) {
     throw new ApiError("USER_DISABLED");
   }
 
+  await prisma.user.update({
+    where: { id: user.id },
+    data: { lastLoginAt: new Date() },
+  });
+
   return issueSession(user);
 }
 

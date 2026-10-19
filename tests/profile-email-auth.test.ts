@@ -18,6 +18,7 @@ import {prisma} from "../src/lib/prisma.js";
 import {sendDueAppointmentNotifications} from "../src/modules/appointments/appointment.notification.js";
 import {
     loginPatient,
+    loginStaff,
     registerPatient,
 } from "../src/modules/auth/auth.service.js";
 import {
@@ -174,6 +175,21 @@ test("dang ky va dang nhap patient lay phone tu Firebase token",async()=>{
         loginPatient({firebaseIdToken:fakeToken()},async()=>{throw new Error("invalid");}),
         (error:unknown)=>error instanceof ApiError&&error.code==="INVALID_FIREBASE_TOKEN",
     );
+});
+
+test("staff login records successful logins without updating failed attempts",async()=>{
+    const doctor=await createDoctor(90);
+    const before=Date.now();
+    await assert.rejects(loginStaff({email:`doctor.${suffix}.90@example.com`,password:"WrongPassword"}));
+    assert.equal((await prisma.user.findUniqueOrThrow({where:{id:doctor.id}})).lastLoginAt,null);
+    const session=await loginStaff({email:`doctor.${suffix}.90@example.com`,password:"DoctorPass123"});
+    assert.equal(session.user.id,doctor.id);
+    const loggedIn=await prisma.user.findUniqueOrThrow({where:{id:doctor.id}});
+    assert.ok(loggedIn.lastLoginAt);
+    assert.ok(loggedIn.lastLoginAt.getTime()>=before);
+    await prisma.user.update({where:{id:doctor.id},data:{status:"DISABLED"}});
+    await assert.rejects(loginStaff({email:`doctor.${suffix}.90@example.com`,password:"DoctorPass123"}));
+    assert.equal((await prisma.user.findUniqueOrThrow({where:{id:doctor.id}})).lastLoginAt?.getTime(),loggedIn.lastLoginAt.getTime());
 });
 
 test("email patient nullable va chi bat notification sau khi co email",async()=>{
