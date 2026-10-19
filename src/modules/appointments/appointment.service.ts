@@ -275,6 +275,16 @@ export function getOwnAppointmentHistory(
         {
             ...ownerWhere,
             ...createAppointmentHistoryWhere(query),
+            OR: [
+                { endAt: { lte: new Date() } },
+                { status: { in: [
+                    AppointmentStatus.CANCELLED,
+                    AppointmentStatus.REJECTED,
+                    AppointmentStatus.EXPIRED,
+                    AppointmentStatus.COMPLETED,
+                    AppointmentStatus.NO_SHOW,
+                ] } },
+            ],
         },
         query,
         currentUser.role === "PATIENT",

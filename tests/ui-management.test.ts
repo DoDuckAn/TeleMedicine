@@ -57,13 +57,11 @@ test("admin membership atomicity, protected overrides and live patient profile",
     const detail=await request(app).get(`/api/v1/appointments/${appointment.id}`).set("Authorization",bearer(doctor));
     assert.equal(detail.status,200);
     assert.equal(detail.body.data.patient.drugAllergies,"Updated allergy");
-    for(const listPath of ["/api/v1/appointments/upcoming","/api/v1/appointments/history"]){
-      const response=await request(app).get(listPath).set("Authorization",bearer(patient));
-      assert.equal(response.status,200);
-      const listed=response.body.data.items.find((item:{id:string})=>item.id===appointment.id);
-      assert.ok(listed);
-      assert.deepEqual(listed.doctor.specialties,[{id:specialty.id,code:specialty.code,name:specialty.name}]);
-    }
+    const upcoming=await request(app).get("/api/v1/appointments/upcoming").set("Authorization",bearer(patient));
+    assert.equal(upcoming.status,200);
+    const listed=upcoming.body.data.items.find((item:{id:string})=>item.id===appointment.id);
+    assert.ok(listed);
+    assert.deepEqual(listed.doctor.specialties,[{id:specialty.id,code:specialty.code,name:specialty.name}]);
     await prisma.specialty.update({where:{id:specialty.id},data:{status:"DISABLED",deletedAt:new Date()}});
     assert.equal((await patch({removeDoctorIds:[doctor.id]})).status,200);
     assert.equal((await patch({addDoctorIds:[doctor.id]})).status,409);
