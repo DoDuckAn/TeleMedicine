@@ -72,6 +72,7 @@ const appointmentHistorySelect = {
             userID: true,
             fullName: true,
             avatarUrl: true,
+            specialties: { select: { id: true, code: true, name: true } },
         },
     },
     patient: {
