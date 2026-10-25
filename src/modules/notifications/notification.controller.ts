@@ -28,6 +28,10 @@ export async function unregisterPushDevice(req: Request, res: Response) {
     return ok(res, { removed: true });
 }
 
+export async function resolvePush(req:Request,res:Response){
+    return ok(res,await NotificationService.resolvePushNotification(req.body));
+}
+
 export async function listNotifications(req:Request,res:Response){
     const query=listNotificationsQuerySchema.parse(req.query) as ListNotificationsQuery;
     return ok(res,await NotificationService.listNotifications(req.user!.id,query));

@@ -106,9 +106,17 @@ test("expired, idle, legacy and version-invalid registrations cannot receive pus
   const user = await account();
   const session = await login(user);
   const binding = await registerPushDevice(user.id, device(session.refreshToken));
+  const expiredSession = await login(user);
+  const expiredBinding = await registerPushDevice(user.id, device(expiredSession.refreshToken));
+  const expired = await prisma.pushDeviceToken.findUniqueOrThrow({ where: { id: expiredBinding.id } });
+  await prisma.refreshToken.update({ where: { id: expired.refreshTokenId! }, data: { expiresAt: new Date(0) } });
+  const legacy = await prisma.pushDeviceToken.create({ data: { userID: user.id, token: `legacy-${randomUUID()}`, platform: "WEB" } });
+  assert.deepEqual((await getActivePushDevices(user.id)).map(entry => entry.id), [binding.id]);
   await prisma.user.update({ where: { id: user.id }, data: { tokenVersion: { increment: 1 } } });
   assert.equal((await getActivePushDevices(user.id)).length, 0);
   await prisma.pushDeviceToken.update({ where: { id: binding.id }, data: { lastRegisteredAt: new Date("2020-01-01") } });
   await prunePushDevices();
   assert.equal((await prisma.pushDeviceToken.findUniqueOrThrow({ where: { id: binding.id } })).enabled, false);
+  assert.equal((await prisma.pushDeviceToken.findUniqueOrThrow({ where: { id: expiredBinding.id } })).enabled, false);
+  assert.equal((await prisma.pushDeviceToken.findUniqueOrThrow({ where: { id: legacy.id } })).enabled, false);
 });

@@ -7,7 +7,7 @@ import {
 } from "../../../generated/prisma/enums.js";
 import type { Prisma } from "../../../generated/prisma/client.js";
 import { config } from "../../config/env.js";
-import { sendFirebasePush } from "../../lib/firebase.js";
+import { sendFirebasePush, sendFirebaseWebPush } from "../../lib/firebase.js";
 import {sendEmail,type EmailMessage} from "../../lib/email.js";
 import { prisma } from "../../lib/prisma.js";
 import { getActivePushDevices } from "../notifications/push-device.service.js";
@@ -196,11 +196,16 @@ export async function createAppointmentEvents(
     });
 }
 
-async function deliverPush(notification: DeliveryNotification) {
+async function deliverPush(notification: DeliveryNotification, webPushSender = sendFirebaseWebPush) {
     const devices = await getActivePushDevices(notification.recipientID);
+    const webDevices = devices.filter(device => device.platform === "WEB" && device.receiptSecretHash);
+    const nativeDevices = devices.filter(device => device.platform !== "WEB");
+    if (!webDevices.length && !nativeDevices.length) throw new Error("Recipient has no active push device");
     const message = buildAppointmentNotificationMessage(notification);
-    const result = await sendFirebasePush(
-        devices.map((device) => device.token),
+    const results = [];
+    if (webDevices.length) results.push(await webPushSender(webDevices.map(device => ({token:device.token,bindingId:device.id,deliveryId:notification.id}))));
+    if (nativeDevices.length) results.push(await sendFirebasePush(
+        nativeDevices.map((device) => device.token),
         {
             ...message,
             data: {
@@ -208,7 +213,12 @@ async function deliverPush(notification: DeliveryNotification) {
                 type: notification.type,
             },
         },
-    );
+    ));
+    const result = {
+        successCount: results.reduce((sum, entry) => sum + entry.successCount, 0),
+        invalidTokens: results.flatMap(entry => entry.invalidTokens),
+        failureMessages: results.flatMap(entry => entry.failureMessages),
+    };
 
     if (result.invalidTokens.length > 0) {
         await prisma.pushDeviceToken.updateMany({
@@ -243,18 +253,19 @@ async function deliverEmail(
 async function deliverNotification(
     notification:DeliveryNotification,
     emailSender:(message:EmailMessage)=>Promise<void>,
+    webPushSender: typeof sendFirebaseWebPush,
 ) {
     if (notification.channel === NotificationChannel.PUSH) {
-        await deliverPush(notification);
+        await deliverPush(notification,webPushSender);
         return;
     }
 
     await deliverEmail(notification,emailSender);
 }
 
-function findDueNotifications(now:Date,notificationIds?:string[]) {
+function findDueNotifications(now:Date,notificationIds?:string[],includePush=config.firebase.pushEnabled) {
     const channels: NotificationChannel[] = [NotificationChannel.EMAIL];
-    if (config.firebase.pushEnabled) {
+    if (includePush) {
         channels.push(NotificationChannel.PUSH);
     }
 
@@ -318,11 +329,12 @@ export async function sendDueAppointmentNotifications(
     options?:{
         emailSender?:(message:EmailMessage)=>Promise<void>;
         notificationIds?:string[];
+        webPushSender?:typeof sendFirebaseWebPush;
     },
 ) {
     await recoverStaleNotifications(now);
     await cancelExpiredNotifications(now);
-    const notifications=await findDueNotifications(now,options?.notificationIds);
+    const notifications=await findDueNotifications(now,options?.notificationIds,config.firebase.pushEnabled||Boolean(options?.webPushSender));
     const emailSender=options?.emailSender??sendEmail;
     let sentCount = 0;
     let failedCount = 0;
@@ -376,7 +388,7 @@ export async function sendDueAppointmentNotifications(
         }
 
         try {
-            await deliverNotification(notification,emailSender);
+            await deliverNotification(notification,emailSender,options?.webPushSender??sendFirebaseWebPush);
             await prisma.appointmentNotification.updateMany({
                 where: {
                     id: notification.id,

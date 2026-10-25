@@ -1,8 +1,12 @@
 import { prisma } from "../../lib/prisma.js";
 import { ApiError } from "../../common/api-error.js";
+import {timingSafeEqual} from "node:crypto";
+import {hashToken} from "../../lib/token.js";
+import {PUSH_DEVICE_MAX_IDLE_MS} from "./push-device.service.js";
 import {
     buildAppointmentNotificationMessage,
     getEnabledAppointmentNotificationTypes,
+    isAppointmentNotificationEnabled,
 } from "../appointments/appointment.notification.js";
 import type {
     ListNotificationsQuery,
@@ -46,6 +50,26 @@ function preferenceResponse(preference:typeof defaultPreference){
 }
 
 export { registerPushDevice, unregisterPushDevice } from "./push-device.service.js";
+
+export async function resolvePushNotification(input:{bindingId:string;deliveryId:string;receiptSecret:string}) {
+    const now=new Date();
+    const device=await prisma.pushDeviceToken.findUnique({where:{id:input.bindingId},include:{
+        refreshToken:true,user:{select:{status:true,tokenVersion:true,notificationPreference:true}},
+    }});
+    const storedHash=device?.receiptSecretHash;
+    if(!device||!storedHash||storedHash.length!==64||!timingSafeEqual(Buffer.from(storedHash,"hex"),Buffer.from(hashToken(input.receiptSecret),"hex"))||
+        !device.enabled||device.platform!=="WEB"||device.user.status!=="ACTIVE"||device.authVersion!==device.user.tokenVersion||
+        device.lastRegisteredAt.getTime()<=now.getTime()-PUSH_DEVICE_MAX_IDLE_MS||
+        !device.refreshToken||device.refreshToken.userId!==device.userID||device.refreshToken.revokedAt||device.refreshToken.replacedByID||device.refreshToken.expiresAt<=now){
+        throw new ApiError("NOTIFICATION_NOT_FOUND");
+    }
+    const delivery=await prisma.appointmentNotification.findFirst({where:{
+        id:input.deliveryId,recipientID:device.userID,channel:"PUSH",status:{in:["PROCESSING","SENT"]},scheduledAt:{lte:now},
+    },select:{id:true,type:true}});
+    if(!delivery||!isAppointmentNotificationEnabled(device.user.notificationPreference,delivery.type,"PUSH"))throw new ApiError("NOTIFICATION_NOT_FOUND");
+    // Browser lock screens never receive patient names, symptoms or meeting URLs.
+    return {title:"Thông báo lịch hẹn",body:"Bạn có cập nhật lịch hẹn mới. Mở ứng dụng để xem chi tiết.",url:"/notifications",notificationId:delivery.id};
+}
 
 export async function getNotificationPreference(userId:string){
     const preference=await prisma.notificationPreference.findUnique({

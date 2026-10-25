@@ -1,6 +1,6 @@
 import { cert, deleteApp, getApps, initializeApp } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
-import { getMessaging } from "firebase-admin/messaging";
+import { getMessaging, type BatchResponse } from "firebase-admin/messaging";
 import { config } from "../config/env.js";
 import { resolveIntegrationSecrets } from "../modules/system-settings/integration-secret.service.js";
 
@@ -107,6 +107,24 @@ export async function sendFirebasePush(
         },
     });
 
+    return summarizePushResponse(tokens, response);
+}
+
+export async function sendFirebaseWebPush(messages: Array<{token:string;bindingId:string;deliveryId:string}>) {
+    if (!messages.length) throw new Error("Recipient has no active web push device");
+    const response = await (await getFirebaseMessaging()).sendEach(buildWebPushMessages(messages));
+    return summarizePushResponse(messages.map(message => message.token), response);
+}
+
+export function buildWebPushMessages(messages:Array<{token:string;bindingId:string;deliveryId:string}>){
+    return messages.map(message => ({
+        token: message.token,
+        data: { bindingId: message.bindingId, deliveryId: message.deliveryId },
+        webpush: { headers: { TTL: "120", Urgency: "normal" } },
+    }));
+}
+
+function summarizePushResponse(tokens: string[], response: BatchResponse) {
     const invalidTokens: string[] = [];
     const failureMessages: string[] = [];
 

@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { asyncHandler } from "../../common/async-handler.js";
+import {createLimiter} from "../../middleware/rate-limit.middleware.js";
 import { requireAuth } from "../../middleware/auth.middleware.js";
 import { validateBody,validateParams,validateQuery } from "../../middleware/validate.middleware.js";
 import * as NotificationController from "./notification.controller.js";
@@ -9,9 +10,12 @@ import {
     listNotificationsQuerySchema,
     notificationIdParamSchema,
     updateNotificationPreferenceSchema,
+    resolvePushSchema,
 } from "./notification.schema.js";
 
 export const notificationRouter = Router();
+
+notificationRouter.post("/push/resolve",createLimiter(120,60_000),validateBody(resolvePushSchema),asyncHandler(NotificationController.resolvePush));
 
 notificationRouter.get(
     "/",

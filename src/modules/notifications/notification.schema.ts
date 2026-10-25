@@ -22,6 +22,12 @@ export const unregisterPushDeviceSchema = z.object({
     refreshToken: z.string().min(1).max(8192),
 });
 
+export const resolvePushSchema = z.object({
+    bindingId: z.string().min(1).max(128),
+    deliveryId: z.string().min(1).max(128),
+    receiptSecret: z.string().min(43).max(128),
+});
+
 export const listNotificationsQuerySchema=z.object({
     unreadOnly:z.enum(["true","false"])
         .transform((value)=>value==="true")
