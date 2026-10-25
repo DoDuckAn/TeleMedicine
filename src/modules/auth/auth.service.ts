@@ -366,13 +366,15 @@ export async function getMe(userId: string) {
 }
 
 export async function refresh(input: RefreshInput) {
-  const payload = verifyRefreshToken(input.refreshToken);
+  let payload;
+  try { payload = verifyRefreshToken(input.refreshToken); }
+  catch { throw new ApiError("INVALID_REFRESH_TOKEN"); }
   const storedToken = await prisma.refreshToken.findUnique({
     where: { jti: payload.jti },
   });
 
   const tokenHash = hashToken(input.refreshToken);
-  if (!storedToken || storedToken.revokedAt || storedToken.replacedByID || storedToken.tokenHash !== tokenHash) {
+  if (!storedToken || storedToken.userId !== payload.sub || storedToken.revokedAt || storedToken.replacedByID || storedToken.tokenHash !== tokenHash) {
     throw new ApiError("INVALID_REFRESH_TOKEN");
   }
 
@@ -404,6 +406,11 @@ export async function refresh(input: RefreshInput) {
   });
 
   await prisma.$transaction(async (tx) => {
+    const claimed = await tx.refreshToken.updateMany({
+      where: { id: storedToken.id, userId: user.id, tokenHash, revokedAt: null, replacedByID: null, expiresAt: { gt: new Date() } },
+      data: { revokedAt: new Date() },
+    });
+    if (claimed.count !== 1) throw new ApiError("INVALID_REFRESH_TOKEN");
     const createdRefreshToken = await tx.refreshToken.create({
       data: {
         userId: user.id,
@@ -421,6 +428,10 @@ export async function refresh(input: RefreshInput) {
         revokedAt: new Date(),
       },
     });
+    await tx.pushDeviceToken.updateMany({
+      where: { refreshTokenId: storedToken.id },
+      data: { refreshTokenId: createdRefreshToken.id },
+    });
   });
 
   const accessToken = signAccessToken({
@@ -436,23 +447,38 @@ export async function refresh(input: RefreshInput) {
 }
 
 export async function logout(input: LogOutInput) {
-  const payload = verifyRefreshToken(input.refreshToken);
+  let payload;
+  try { payload = verifyRefreshToken(input.refreshToken); }
+  catch { throw new ApiError("INVALID_REFRESH_TOKEN"); }
   const storedToken = await prisma.refreshToken.findUnique({
     where: { jti: payload.jti },
   });
 
   const tokenHash = hashToken(input.refreshToken);
-  if (!storedToken || storedToken.revokedAt || storedToken.replacedByID || storedToken.tokenHash !== tokenHash) {
+  if (!storedToken || storedToken.userId !== payload.sub || storedToken.tokenHash !== tokenHash) {
     throw new ApiError("INVALID_REFRESH_TOKEN");
   }
-
-  if (storedToken.expiresAt < new Date()) {
-    throw new ApiError("REFRESH_TOKEN_EXPIRED");
-  }
-
-  await prisma.refreshToken.updateMany({
-    where: { jti: payload.jti },
-    data: { revokedAt: new Date() },
+  await prisma.$transaction(async tx => {
+    // An offline logout may carry an ancestor token that another tab already rotated.
+    for (let attempt = 0; attempt < 8; attempt++) {
+      const chain = await tx.$queryRaw<Array<{ id: string; replacedByID: string | null; revokedAt: Date | null }>>`
+        WITH RECURSIVE chain AS (
+          SELECT id, "replacedByID", "revokedAt" FROM "RefreshToken" WHERE id = ${storedToken.id} AND "userId" = ${payload.sub}
+          UNION
+          SELECT t.id, t."replacedByID", t."revokedAt" FROM "RefreshToken" t
+          JOIN chain c ON t.id = c."replacedByID" WHERE t."userId" = ${payload.sub}
+        ) SELECT * FROM chain`;
+      const tail = chain.find(token => token.replacedByID === null);
+      if (!tail) throw new ApiError("INVALID_REFRESH_TOKEN");
+      if (!tail.revokedAt) {
+        const locked = await tx.refreshToken.updateMany({ where: { id: tail.id, revokedAt: null, replacedByID: null }, data: { revokedAt: new Date() } });
+        if (!locked.count) continue;
+      }
+      await tx.refreshToken.updateMany({ where: { id: { in: chain.map(token => token.id) } }, data: { revokedAt: new Date() } });
+      await tx.pushDeviceToken.updateMany({ where: { refreshTokenId: { in: chain.map(token => token.id) } }, data: { enabled: false } });
+      return;
+    }
+    throw new ApiError("INVALID_REFRESH_TOKEN");
   });
 }
 
@@ -466,5 +492,6 @@ export async function logoutAll(userId: string) {
       where: { id: userId },
       data: { tokenVersion: { increment: 1 } },
     }),
+    prisma.pushDeviceToken.updateMany({ where: { userID: userId }, data: { enabled: false } }),
   ]);
 }

@@ -1,4 +1,5 @@
 import cron from "node-cron";
+import {prunePushDevices} from "../notifications/push-device.service.js";
 import {publishAppointmentChanged,publishDueNotificationUpdates} from "../../lib/realtime.js";
 import {
     AppointmentActor,
@@ -220,6 +221,7 @@ export async function runAppointmentMaintenance(now = new Date()) {
 
     maintenanceRunning = true;
     try {
+        await prunePushDevices(now);
         const expiredCount=await expirePendingAppointments(now);
         const noShowCount = await markOverdueAppointmentsNoShow(now);
         const cleanedCount = await cleanupPendingMeetingSpaces();

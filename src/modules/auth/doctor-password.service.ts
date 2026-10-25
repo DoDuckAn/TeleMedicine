@@ -114,6 +114,7 @@ async function saveNewPassword(userId:string,otpId:string,newPassword:string){
             where:{userId,revokedAt:null},
             data:{revokedAt:new Date()},
         });
+        await tx.pushDeviceToken.updateMany({where:{userID:userId},data:{enabled:false}});
     });
     return {passwordChanged:true,sessionsRevoked:true};
 }

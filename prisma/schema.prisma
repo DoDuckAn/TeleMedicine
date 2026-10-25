@@ -407,14 +407,21 @@ model PushDeviceToken {
   token    String             @unique
   platform PushDevicePlatform
   enabled  Boolean            @default(true)
+  refreshTokenId String?
+  authVersion Int?
+  installationId String? @unique
+  receiptSecretHash String?
 
   lastRegisteredAt DateTime @default(now())
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
   user User @relation(fields: [userID], references: [id], onDelete: Cascade)
+  refreshToken RefreshToken? @relation(fields: [refreshTokenId], references: [id], onDelete: Cascade)
 
   @@index([userID, enabled])
+  @@index([refreshTokenId])
+  @@index([enabled, lastRegisteredAt])
 }
 
 model DoctorPasswordOtp {
@@ -466,6 +473,7 @@ model RefreshToken {
   createdAt DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id])
+  pushDevices PushDeviceToken[]
 
   @@index([userId, revokedAt])
 }

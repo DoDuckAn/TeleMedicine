@@ -10,6 +10,7 @@ import { config } from "../../config/env.js";
 import { sendFirebasePush } from "../../lib/firebase.js";
 import {sendEmail,type EmailMessage} from "../../lib/email.js";
 import { prisma } from "../../lib/prisma.js";
+import { getActivePushDevices } from "../notifications/push-device.service.js";
 
 const notificationSelect = {
     id: true,
@@ -196,15 +197,7 @@ export async function createAppointmentEvents(
 }
 
 async function deliverPush(notification: DeliveryNotification) {
-    const devices = await prisma.pushDeviceToken.findMany({
-        where: {
-            userID: notification.recipientID,
-            enabled: true,
-        },
-        select: { token: true },
-        orderBy: { lastRegisteredAt: "desc" },
-        take: 500,
-    });
+    const devices = await getActivePushDevices(notification.recipientID);
     const message = buildAppointmentNotificationMessage(notification);
     const result = await sendFirebasePush(
         devices.map((device) => device.token),

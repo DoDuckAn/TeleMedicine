@@ -3,15 +3,23 @@ import { PushDevicePlatform } from "../../../generated/prisma/enums.js";
 
 export const registerPushDeviceSchema = z.object({
     token: z.string().trim().min(20).max(4096),
+    refreshToken: z.string().min(1).max(8192),
+    installationId: z.uuid().optional(),
+    receiptSecret: z.string().min(43).max(128).optional(),
     platform: z.enum([
         PushDevicePlatform.WEB,
         PushDevicePlatform.ANDROID,
         PushDevicePlatform.IOS,
     ]),
+}).superRefine((input,ctx)=>{
+    if(input.platform==="WEB"&&(!input.installationId||!input.receiptSecret)){
+        ctx.addIssue({code:"custom",message:"Cần thông tin đăng ký thông báo trình duyệt"});
+    }
 });
 
 export const unregisterPushDeviceSchema = z.object({
     token: z.string().trim().min(20).max(4096),
+    refreshToken: z.string().min(1).max(8192),
 });
 
 export const listNotificationsQuerySchema=z.object({

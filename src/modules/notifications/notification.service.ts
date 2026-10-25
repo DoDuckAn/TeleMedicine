@@ -6,8 +6,6 @@ import {
 } from "../appointments/appointment.notification.js";
 import type {
     ListNotificationsQuery,
-    RegisterPushDeviceInput,
-    UnregisterPushDeviceInput,
     UpdateNotificationPreferenceInput,
 } from "./notification.schema.js";
 
@@ -47,42 +45,7 @@ function preferenceResponse(preference:typeof defaultPreference){
     };
 }
 
-export function registerPushDevice(
-    userId: string,
-    input: RegisterPushDeviceInput,
-) {
-    return prisma.pushDeviceToken.upsert({
-        where: { token: input.token },
-        create: {
-            userID: userId,
-            token: input.token,
-            platform: input.platform,
-        },
-        update: {
-            userID: userId,
-            platform: input.platform,
-            enabled: true,
-            lastRegisteredAt: new Date(),
-        },
-        select: {
-            id: true,
-            platform: true,
-            lastRegisteredAt: true,
-        },
-    });
-}
-
-export async function unregisterPushDevice(
-    userId: string,
-    input: UnregisterPushDeviceInput,
-) {
-    await prisma.pushDeviceToken.deleteMany({
-        where: {
-            userID: userId,
-            token: input.token,
-        },
-    });
-}
+export { registerPushDevice, unregisterPushDevice } from "./push-device.service.js";
 
 export async function getNotificationPreference(userId:string){
     const preference=await prisma.notificationPreference.findUnique({
