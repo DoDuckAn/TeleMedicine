@@ -51,7 +51,16 @@ export function verifyAccessToken(token: string): AccessTokenVerifiedPayload {
 }
 
 export function verifyRefreshToken(token: string): RefreshTokenVerifiedPayload {
-  const payload = jwt.verify(token, config.jwt.refreshSecret);
+  return readRefreshToken(token, false);
+}
+
+// Logout can revoke a live descendant of an expired, rotated token.
+export function verifyRefreshTokenForLogout(token: string): RefreshTokenVerifiedPayload {
+  return readRefreshToken(token, true);
+}
+
+function readRefreshToken(token: string, ignoreExpiration: boolean): RefreshTokenVerifiedPayload {
+  const payload = jwt.verify(token, config.jwt.refreshSecret, { ignoreExpiration });
 
   if (
     typeof payload !== "object" ||

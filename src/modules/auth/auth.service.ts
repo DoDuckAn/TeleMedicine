@@ -12,7 +12,7 @@ import { prisma } from "../../lib/prisma.js";
 import {assertWeeklyScheduleWithinWorkday,getScheduleSettings} from "../system-settings/system-setting.service.js";
 import {verifyFirebasePhoneIdToken} from "../../lib/firebase.js";
 import { createTokenId, hashToken } from "../../lib/token.js";
-import { signAccessToken, signRefreshToken, verifyRefreshToken } from "../../lib/jwt.js";
+import { signAccessToken, signRefreshToken, verifyRefreshToken, verifyRefreshTokenForLogout } from "../../lib/jwt.js";
 import {
   type CreateDoctorInput,
   type LoginPatientInput,
@@ -448,7 +448,7 @@ export async function refresh(input: RefreshInput) {
 
 export async function logout(input: LogOutInput) {
   let payload;
-  try { payload = verifyRefreshToken(input.refreshToken); }
+  try { payload = verifyRefreshTokenForLogout(input.refreshToken); }
   catch { throw new ApiError("INVALID_REFRESH_TOKEN"); }
   const storedToken = await prisma.refreshToken.findUnique({
     where: { jti: payload.jti },

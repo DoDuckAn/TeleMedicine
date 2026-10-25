@@ -16,40 +16,73 @@ function readRefresh(token: string, userId: string) {
 
 export async function registerPushDevice(userId: string, input: RegisterPushDeviceInput) {
   const payload = readRefresh(input.refreshToken, userId);
-  const now = new Date();
-  return prisma.$transaction(async tx => {
-    const user = await tx.user.findUnique({ where: { id: userId }, select: { status: true, tokenVersion: true } });
-    if (!user || user.status !== "ACTIVE" || user.tokenVersion !== payload.tokenVersion) throw new ApiError("INVALID_REFRESH_TOKEN");
-    const refresh = await tx.refreshToken.findUnique({ where: { jti: payload.jti } });
-    if (!refresh) throw new ApiError("INVALID_REFRESH_TOKEN");
-    // Lock the current refresh row against concurrent rotation/logout before binding the device.
-    const locked = await tx.refreshToken.updateMany({
-      where: { id: refresh.id, userId, tokenHash: hashToken(input.refreshToken), revokedAt: null, replacedByID: null, expiresAt: { gt: now } },
-      data: { deviceInfo: refresh.deviceInfo },
-    });
-    if (locked.count !== 1) throw new ApiError("INVALID_REFRESH_TOKEN");
-    const existing = await tx.pushDeviceToken.findFirst({
-      where: { OR: [{ token: input.token }, ...(input.installationId ? [{ installationId: input.installationId }] : [])] },
-    });
-    const data = {
-      userID: userId, token: input.token, platform: input.platform, enabled: true,
-      refreshTokenId: refresh.id, authVersion: user.tokenVersion, lastRegisteredAt: now,
-      installationId: input.installationId ?? null,
-      receiptSecretHash: input.receiptSecret ? hashToken(input.receiptSecret) : null,
-    };
-    // A new login gets a new binding ID, so delayed messages for the previous login are rejected.
-    const reuse = existing?.refreshTokenId === refresh.id && existing.userID === userId && existing.enabled;
-    if (reuse) return tx.pushDeviceToken.update({ where: { id: existing.id }, data, select: { id: true, platform: true, lastRegisteredAt: true } });
-    await tx.pushDeviceToken.deleteMany({ where: { OR: [{ token: input.token }, ...(input.installationId ? [{ installationId: input.installationId }] : [])] } });
-    return tx.pushDeviceToken.create({ data, select: { id: true, platform: true, lastRegisteredAt: true } });
-  });
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await prisma.$transaction(async tx => {
+        const now = new Date();
+        const user = await tx.user.findUnique({ where: { id: userId }, select: { status: true, tokenVersion: true } });
+        if (!user || user.status !== "ACTIVE" || user.tokenVersion !== payload.tokenVersion) throw new ApiError("INVALID_REFRESH_TOKEN");
+        const refresh = await tx.refreshToken.findUnique({ where: { jti: payload.jti } });
+        if (!refresh) throw new ApiError("INVALID_REFRESH_TOKEN");
+        // Lock the current refresh row against concurrent rotation/logout before binding the device.
+        const locked = await tx.refreshToken.updateMany({
+          where: { id: refresh.id, userId, tokenHash: hashToken(input.refreshToken), revokedAt: null, replacedByID: null, expiresAt: { gt: now } },
+          data: { deviceInfo: refresh.deviceInfo },
+        });
+        if (locked.count !== 1) throw new ApiError("INVALID_REFRESH_TOKEN");
+        const matches = await tx.pushDeviceToken.findMany({
+          where: { OR: [{ token: input.token }, ...(input.installationId ? [{ installationId: input.installationId }] : [])] },
+        });
+        const existing = matches.length === 1 ? matches[0] : undefined;
+        const data = {
+          userID: userId, token: input.token, platform: input.platform, enabled: true,
+          refreshTokenId: refresh.id, authVersion: user.tokenVersion, lastRegisteredAt: now,
+          installationId: input.installationId ?? null,
+          receiptSecretHash: input.receiptSecret ? hashToken(input.receiptSecret) : null,
+        };
+        // A new login gets a new binding ID, so delayed messages for the previous login are rejected.
+        const reuse = existing?.refreshTokenId === refresh.id && existing.userID === userId && existing.enabled;
+        if (reuse) return tx.pushDeviceToken.update({ where: { id: existing.id }, data, select: { id: true, platform: true, lastRegisteredAt: true } });
+        await tx.pushDeviceToken.deleteMany({ where: { OR: [{ token: input.token }, ...(input.installationId ? [{ installationId: input.installationId }] : [])] } });
+        return tx.pushDeviceToken.create({ data, select: { id: true, platform: true, lastRegisteredAt: true } });
+      });
+    } catch (error) {
+      // A different session may claim the same token/installation after our lookup.
+      if (attempt >= 3 || typeof error !== "object" || error === null ||
+          !("code" in error) || !["P2002", "P2034"].includes(String(error.code))) throw error;
+    }
+  }
 }
 
 export async function unregisterPushDevice(userId: string, input: UnregisterPushDeviceInput) {
   const payload = readRefresh(input.refreshToken, userId);
   const refresh = await prisma.refreshToken.findUnique({ where: { jti: payload.jti } });
   if (!refresh || refresh.userId !== userId || refresh.tokenHash !== hashToken(input.refreshToken)) throw new ApiError("INVALID_REFRESH_TOKEN");
-  await prisma.pushDeviceToken.updateMany({ where: { userID: userId, token: input.token, refreshTokenId: refresh.id }, data: { enabled: false } });
+  await prisma.$transaction(async tx => {
+    for (let attempt = 0; attempt < 8; attempt++) {
+      const chain = await tx.$queryRaw<Array<{ id: string; replacedByID: string | null; revokedAt: Date | null; deviceInfo: string | null }>>`
+        WITH RECURSIVE chain AS (
+          SELECT id, "replacedByID", "revokedAt", "deviceInfo" FROM "RefreshToken" WHERE id = ${refresh.id} AND "userId" = ${userId}
+          UNION
+          SELECT t.id, t."replacedByID", t."revokedAt", t."deviceInfo" FROM "RefreshToken" t
+          JOIN chain c ON t.id = c."replacedByID" WHERE t."userId" = ${userId}
+        ) SELECT * FROM chain`;
+      const tail = chain.find(token => token.replacedByID === null);
+      if (!tail) throw new ApiError("INVALID_REFRESH_TOKEN");
+      // Hold the tail against rotation until its bindings have been disabled.
+      const locked = await tx.refreshToken.updateMany({
+        where: { id: tail.id, replacedByID: null, revokedAt: tail.revokedAt },
+        data: { deviceInfo: tail.deviceInfo },
+      });
+      if (!locked.count) continue;
+      await tx.pushDeviceToken.updateMany({
+        where: { userID: userId, token: input.token, refreshTokenId: { in: chain.map(token => token.id) } },
+        data: { enabled: false },
+      });
+      return;
+    }
+    throw new ApiError("INVALID_REFRESH_TOKEN");
+  });
 }
 
 export async function prunePushDevices(now = new Date()) {
