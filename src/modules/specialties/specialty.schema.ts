@@ -14,6 +14,14 @@ const specialtyFields = {
   status: z.enum([SpecialtyStatus.ACTIVE, SpecialtyStatus.DISABLED]),
 };
 
+export const adminSpecialtyListQuerySchema = z.object({
+  page: z.coerce.number().int().positive().default(1),
+  limit: z.coerce.number().int().positive().max(100).default(10),
+  q: z.string().trim().min(1).max(100).optional(),
+  status: z.enum([SpecialtyStatus.ACTIVE, SpecialtyStatus.DISABLED]).optional(),
+});
+export type AdminSpecialtyListQuery = z.infer<typeof adminSpecialtyListQuerySchema>;
+
 export const createSpecialtySchema = z.object({
   code: specialtyFields.code,
   name: specialtyFields.name,

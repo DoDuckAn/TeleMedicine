@@ -4,6 +4,7 @@ import { requireAuth, requireRole } from "../../middleware/auth.middleware.js";
 import {
   validateBody,
   validateParams,
+  validateQuery,
 } from "../../middleware/validate.middleware.js";
 import * as SpecialtyController from "./specialty.controller.js";
 import * as SpecialtySchema from "./specialty.schema.js";
@@ -11,6 +12,12 @@ import * as SpecialtySchema from "./specialty.schema.js";
 export const specialtyRouter = Router();
 
 specialtyRouter.get("/", asyncHandler(SpecialtyController.list));
+
+specialtyRouter.get(
+  "/admin", requireAuth, requireRole("ADMIN"),
+  validateQuery(SpecialtySchema.adminSpecialtyListQuerySchema),
+  asyncHandler(SpecialtyController.adminPage),
+);
 
 specialtyRouter.get(
   "/admin/all",

@@ -4,6 +4,7 @@ import { SpecialtyStatus } from "../../../generated/prisma/enums.js";
 import type {
   CreateSpecialtyInput,
   UpdateSpecialtyInput,
+  AdminSpecialtyListQuery,
 } from "./specialty.schema.js";
 
 const doctorSelect = {
@@ -80,6 +81,30 @@ export function listAllSpecialties() {
     },
     orderBy: [{ status: "asc" }, { name: "asc" }],
   });
+}
+
+export async function listAdminSpecialties(query: AdminSpecialtyListQuery) {
+  const where = {
+    ...(query.status ? { status: query.status } : {}),
+    ...(query.q ? { OR: [
+      { code: { contains: query.q, mode: "insensitive" as const } },
+      { name: { contains: query.q, mode: "insensitive" as const } },
+    ] } : {}),
+  };
+  const [items, total] = await prisma.$transaction([
+    prisma.specialty.findMany({
+      where,
+      select: { id: true, code: true, name: true, description: true, status: true,
+        deletedAt: true, _count: { select: { doctors: true } } },
+      orderBy: [{ status: "asc" }, { name: "asc" }, { id: "asc" }],
+      skip: (query.page - 1) * query.limit,
+      take: query.limit,
+    }),
+    prisma.specialty.count({ where }),
+  ]);
+  return { items, pagination: {
+    page: query.page, limit: query.limit, total, totalPages: Math.ceil(total / query.limit),
+  } };
 }
 
 export async function updateSpecialtyDoctors(specialtyId:string,input:{

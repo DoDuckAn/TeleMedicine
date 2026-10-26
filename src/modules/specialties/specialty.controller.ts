@@ -9,6 +9,7 @@ export async function updateDoctors(req:Request,res:Response){
 import {
   doctorSpecialtyParamSchema,
   specialtyIdParamSchema,
+  adminSpecialtyListQuerySchema,
 } from "./specialty.schema.js";
 
 export async function list(_req: Request, res: Response) {
@@ -17,6 +18,11 @@ export async function list(_req: Request, res: Response) {
 
 export async function adminList(_req: Request, res: Response) {
   return ok(res, await SpecialtyService.listAllSpecialties());
+}
+
+export async function adminPage(req: Request, res: Response) {
+  const query = adminSpecialtyListQuerySchema.parse(req.query);
+  return ok(res, await SpecialtyService.listAdminSpecialties(query));
 }
 
 export async function detail(req: Request, res: Response) {
