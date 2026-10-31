@@ -3,7 +3,7 @@ import { DoctorReviewStatus } from "../../../generated/prisma/enums.js";
 
 export const createDoctorReviewSchema=z.object({
   rating:z.number().int().min(1).max(5),
-  comment:z.string().trim().min(1).max(1000).optional(),
+  comment:z.string().trim().min(1).max(1000).nullable().optional(),
 });
 
 export const replyDoctorReviewSchema=z.object({
